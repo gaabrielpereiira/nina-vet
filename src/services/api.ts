@@ -671,6 +671,7 @@ export const api = {
     attendees?: string[];
     contact_id?: string;
     meeting_url?: string;
+    procedure_id?: string | null;
   }): Promise<Appointment> => {
     const userId = await getCurrentUserId();
     
@@ -686,9 +687,10 @@ export const api = {
         attendees: appointment.attendees || [],
         contact_id: appointment.contact_id,
         meeting_url: appointment.meeting_url,
+        procedure_id: appointment.procedure_id ?? null,
         status: 'scheduled',
         user_id: userId
-      })
+      } as any)
       .select()
       .single();
 
