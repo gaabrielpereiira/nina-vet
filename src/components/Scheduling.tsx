@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, AlignLeft, X, Loader2, LayoutGrid, List, Columns, Video, User, UserCircle, Bot, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, AlignLeft, X, Loader2, LayoutGrid, List, Columns, Video, User, UserCircle, Bot, Pencil, Stethoscope } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './Button';
 import { Appointment, Contact } from '../types';
 import { api } from '../services/api';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useProcedures } from '@/hooks/useProcedures';
 
 type ViewMode = 'month' | 'week' | 'day';
 
@@ -25,6 +26,8 @@ const Scheduling: React.FC = () => {
   
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
+  const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
+  const { procedures: activeProcedures } = useProcedures(true);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -172,7 +175,8 @@ const Scheduling: React.FC = () => {
         duration: formData.duration,
         type: formData.type as 'demo' | 'meeting' | 'support' | 'followup',
         attendees: attendeesArray,
-        contact_id: selectedContactId || undefined
+        contact_id: selectedContactId || undefined,
+        procedure_id: selectedProcedureId || null,
       });
 
       toast.success('Agendamento criado com sucesso!');
@@ -180,6 +184,7 @@ const Scheduling: React.FC = () => {
       setFormData({ title: '', time: '09:00', type: 'demo', description: '', duration: 60 });
       setSelectedDate(null);
       setSelectedContactId(null);
+      setSelectedProcedureId(null);
     } catch (error) {
       console.error('Error creating appointment:', error);
       toast.error('Erro ao criar agendamento');
@@ -631,6 +636,38 @@ const Scheduling: React.FC = () => {
                                 value={formData.description}
                                 onChange={(e) => setFormData({...formData, description: e.target.value})}
                             />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-slate-500 tracking-wider">Procedimento (opcional)</label>
+                        <div className="relative">
+                            <Stethoscope className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                            <select
+                                value={selectedProcedureId || ''}
+                                onChange={(e) => {
+                                    const id = e.target.value || null;
+                                    setSelectedProcedureId(id);
+                                    if (id) {
+                                        const proc = activeProcedures.find(p => p.id === id);
+                                        if (proc) {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                title: prev.title || proc.name,
+                                                duration: proc.duration_minutes || prev.duration,
+                                            }));
+                                        }
+                                    }
+                                }}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-3 py-2.5 text-sm text-white focus:ring-1 focus:ring-cyan-500 outline-none appearance-none"
+                            >
+                                <option value="">Nenhum</option>
+                                {activeProcedures.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name}{p.category ? ` — ${p.category}` : ''}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     </div>
 

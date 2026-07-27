@@ -228,7 +228,32 @@ serve(async (req) => {
         }
 
         // Use default prompt if not configured
-        const systemPrompt = effectiveSettings.system_prompt_override || getDefaultSystemPrompt();
+        let systemPrompt = effectiveSettings.system_prompt_override || getDefaultSystemPrompt();
+
+        // Inject active procedures into the system prompt so Nina can quote prices/requirements accurately
+        try {
+          const { data: procs } = await supabase
+            .from('procedures')
+            .select('name, description, category, requirements, price_type, price, price_min, price_max, duration_minutes')
+            .eq('is_active', true)
+            .order('name');
+          if (procs && procs.length > 0) {
+            const lines = procs.map((p: any) => {
+              const price = p.price_type === 'range'
+                ? `R$ ${Number(p.price_min ?? 0).toFixed(2)}–R$ ${Number(p.price_max ?? 0).toFixed(2)}`
+                : (p.price != null ? `R$ ${Number(p.price).toFixed(2)}` : 'sob consulta');
+              const dur = p.duration_minutes ? ` · ~${p.duration_minutes} min` : '';
+              const cat = p.category ? ` (${p.category})` : '';
+              const desc = p.description ? `\n    ${p.description}` : '';
+              const req = p.requirements ? `\n    Requisitos: ${p.requirements}` : '';
+              return `- ${p.name}${cat} — ${price}${dur}${desc}${req}`;
+            }).join('\n');
+            systemPrompt = `${systemPrompt}\n\n## Procedimentos disponíveis\n${lines}`;
+            console.log('[Nina] Injected', procs.length, 'procedures into system prompt');
+          }
+        } catch (e) {
+          console.error('[Nina] Failed to load procedures for prompt:', e);
+        }
         
         console.log('[Nina] Processing with settings:', {
           is_active: effectiveSettings.is_active,
