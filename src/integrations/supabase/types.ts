@@ -25,6 +25,7 @@ export type Database = {
           id: string
           meeting_url: string | null
           metadata: Json | null
+          procedure_id: string | null
           property_id: string | null
           status: string | null
           time: string
@@ -43,6 +44,7 @@ export type Database = {
           id?: string
           meeting_url?: string | null
           metadata?: Json | null
+          procedure_id?: string | null
           property_id?: string | null
           status?: string | null
           time: string
@@ -61,6 +63,7 @@ export type Database = {
           id?: string
           meeting_url?: string | null
           metadata?: Json | null
+          procedure_id?: string | null
           property_id?: string | null
           status?: string | null
           time?: string
@@ -82,6 +85,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts_with_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "procedures"
             referencedColumns: ["id"]
           },
           {
@@ -783,6 +793,54 @@ export type Database = {
           title?: string
           updated_at?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      procedures: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number | null
+          price_max: number | null
+          price_min: number | null
+          price_type: string
+          requirements: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price?: number | null
+          price_max?: number | null
+          price_min?: number | null
+          price_type?: string
+          requirements?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number | null
+          price_max?: number | null
+          price_min?: number | null
+          price_type?: string
+          requirements?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
