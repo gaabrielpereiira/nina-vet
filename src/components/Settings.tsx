@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { Shield, Bot, Plug, Loader2, Save, RotateCcw, BookOpen, Lock } from 'lucide-react';
+import { Shield, Bot, Plug, Loader2, Save, RotateCcw, BookOpen, Lock, Stethoscope } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import AgentSettings, { AgentSettingsRef } from './settings/AgentSettings';
 import ApiSettings, { ApiSettingsRef } from './settings/ApiSettings';
+import ProceduresSettings from './settings/ProceduresSettings';
 import SystemRoadmap from './SystemRoadmap';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Button } from './Button';
@@ -96,13 +97,17 @@ const Settings: React.FC = () => {
               <Plug className="w-4 h-4" />
               APIs
             </TabsTrigger>
+            <TabsTrigger value="procedures" className="gap-2">
+              <Stethoscope className="w-4 h-4" />
+              Procedimentos
+            </TabsTrigger>
             <TabsTrigger value="docs" className="gap-2">
               <BookOpen className="w-4 h-4" />
               Documentação
             </TabsTrigger>
           </TabsList>
 
-          {activeTab !== 'docs' && isAdmin && (
+          {activeTab !== 'docs' && activeTab !== 'procedures' && isAdmin && (
             <div className="flex gap-3">
               <Button
                 variant="ghost"
@@ -132,7 +137,7 @@ const Settings: React.FC = () => {
             </div>
           )}
           
-          {activeTab !== 'docs' && !isAdmin && (
+          {activeTab !== 'docs' && activeTab !== 'procedures' && !isAdmin && (
             <div className="flex items-center gap-2 text-sm text-amber-400">
               <Lock className="w-4 h-4" />
               Apenas administradores podem editar
@@ -146,6 +151,10 @@ const Settings: React.FC = () => {
 
         <TabsContent value="apis">
           <ApiSettings ref={apiRef} />
+        </TabsContent>
+
+        <TabsContent value="procedures">
+          <ProceduresSettings />
         </TabsContent>
 
         <TabsContent value="docs">
