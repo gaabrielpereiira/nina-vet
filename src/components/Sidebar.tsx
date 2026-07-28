@@ -7,8 +7,10 @@ import { Sidebar, SidebarBody, SidebarLink, useSidebar } from '@/components/ui/s
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import viaIcon from '@/assets/icon-via.png';
-import viaLogoWhite from '@/assets/logo-via-white.png';
+import vetLogoAsset from '@/assets/logo-vetmais.jpeg.asset.json';
+const viaIcon = vetLogoAsset.url;
+const viaLogoWhite = vetLogoAsset.url;
+
 
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
