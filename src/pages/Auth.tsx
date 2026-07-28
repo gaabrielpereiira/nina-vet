@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import vetLogo from '@/assets/logo-vetmais.jpeg.asset.json';
+
 
 // Validation schemas
 const emailSchema = z.string().email('Email inválido');
@@ -131,16 +133,14 @@ const Auth: React.FC = () => {
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent mb-4 p-2">
             <img 
-              src="/src/assets/icon-via.png" 
-              alt="Logo" 
-              className="w-10 h-10"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
+              src={vetLogo.url}
+              alt="Vet+ Logo" 
+              className="w-full h-full object-contain"
             />
           </div>
+
           <h1 className="text-2xl font-bold text-foreground">
             {isLogin ? 'Bem-vindo de volta' : 'Crie sua conta'}
           </h1>
