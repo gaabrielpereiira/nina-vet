@@ -4,69 +4,68 @@
 
 @layer base {
   :root {
-    /* Force Dark Mode as default - App is 100% dark themed */
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 12%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 187 85% 53%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 263 70% 50%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 22%;
-    --ring: 187 85% 53%;
+    /* Vet+ brand — dark mode */
+    --background: 195 20% 8%;
+    --foreground: 180 15% 95%;
+    --card: 195 20% 10%;
+    --card-foreground: 180 15% 95%;
+    --popover: 195 20% 12%;
+    --popover-foreground: 180 15% 95%;
+    --primary: 174 45% 60%;
+    --primary-foreground: 195 30% 10%;
+    --secondary: 180 15% 18%;
+    --secondary-foreground: 180 15% 95%;
+    --muted: 180 15% 18%;
+    --muted-foreground: 180 10% 70%;
+    --accent: 48 55% 78%;
+    --accent-foreground: 195 30% 10%;
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 180 15% 95%;
+    --border: 180 15% 20%;
+    --input: 180 15% 22%;
+    --ring: 174 45% 60%;
     --radius: 0.5rem;
-    
-    /* Sidebar - Dark themed */
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 187 85% 53%;
-    --sidebar-primary-foreground: 222.2 84% 4.9%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 187 85% 53%;
+
+    --sidebar-background: 195 20% 8%;
+    --sidebar-foreground: 180 15% 92%;
+    --sidebar-primary: 174 45% 60%;
+    --sidebar-primary-foreground: 195 30% 10%;
+    --sidebar-accent: 180 15% 18%;
+    --sidebar-accent-foreground: 180 15% 92%;
+    --sidebar-border: 180 15% 20%;
+    --sidebar-ring: 174 45% 60%;
   }
 
-  /* Dark class for compatibility - same values */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 12%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 187 85% 53%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 263 70% 50%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 22%;
-    --ring: 187 85% 53%;
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 187 85% 53%;
-    --sidebar-primary-foreground: 222.2 84% 4.9%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 187 85% 53%;
+    --background: 195 20% 8%;
+    --foreground: 180 15% 95%;
+    --card: 195 20% 10%;
+    --card-foreground: 180 15% 95%;
+    --popover: 195 20% 12%;
+    --popover-foreground: 180 15% 95%;
+    --primary: 174 45% 60%;
+    --primary-foreground: 195 30% 10%;
+    --secondary: 180 15% 18%;
+    --secondary-foreground: 180 15% 95%;
+    --muted: 180 15% 18%;
+    --muted-foreground: 180 10% 70%;
+    --accent: 48 55% 78%;
+    --accent-foreground: 195 30% 10%;
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 180 15% 95%;
+    --border: 180 15% 20%;
+    --input: 180 15% 22%;
+    --ring: 174 45% 60%;
+    --sidebar-background: 195 20% 8%;
+    --sidebar-foreground: 180 15% 92%;
+    --sidebar-primary: 174 45% 60%;
+    --sidebar-primary-foreground: 195 30% 10%;
+    --sidebar-accent: 180 15% 18%;
+    --sidebar-accent-foreground: 180 15% 92%;
+    --sidebar-border: 180 15% 20%;
+    --sidebar-ring: 174 45% 60%;
   }
+
 }
 
 @layer base {
