@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { supabase } from '@/integrations/supabase/client';
+import vetLogo from '@/assets/logo-vetmais.jpeg.asset.json';
+
 
 // Validation schemas
 const emailSchema = z.string().email('Email inválido');
