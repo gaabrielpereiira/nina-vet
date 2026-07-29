@@ -245,6 +245,9 @@ export interface DBConversation {
   last_message_at: string;
   created_at: string;
   updated_at: string;
+  ai_paused?: boolean;
+  ai_paused_at?: string | null;
+  ai_paused_reason?: string | null;
   // Joined data
   contact?: DBContact;
   messages?: DBMessage[];
