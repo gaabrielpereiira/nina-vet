@@ -466,8 +466,36 @@ const ChatInterface: React.FC = () => {
               </div>
             </div>
 
+            {/* AI Paused Banner - operador respondeu pelo app do celular (echo) */}
+            {activeChat.aiPaused && (
+              <div className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 z-10">
+                <div className="flex items-center gap-3">
+                  <Pause className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div className="text-xs">
+                    <p className="text-amber-200 font-medium">
+                      {activeChat.aiPausedReason === 'human_reply'
+                        ? 'Nina pausada — você respondeu por outro dispositivo'
+                        : 'Nina pausada nesta conversa'}
+                    </p>
+                    <p className="text-amber-200/70">
+                      Novas mensagens do cliente não serão respondidas pela IA até você reativá-la.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setAiPaused(activeChat.id, false, null)}
+                  className="bg-amber-500/20 text-amber-100 hover:bg-amber-500/30 border border-amber-500/40"
+                >
+                  Reativar Nina
+                </Button>
+              </div>
+            )}
+
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar relative z-0">
+
               {activeChat.messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-slate-500">
                   <MessageSquare className="w-16 h-16 mb-4 opacity-30" />
