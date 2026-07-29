@@ -212,6 +212,10 @@ export type Database = {
       }
       conversations: {
         Row: {
+          ai_paused: boolean
+          ai_paused_at: string | null
+          ai_paused_by: string | null
+          ai_paused_reason: string | null
           assigned_team: Database["public"]["Enums"]["team_assignment"] | null
           assigned_user_id: string | null
           contact_id: string
@@ -228,6 +232,10 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          ai_paused?: boolean
+          ai_paused_at?: string | null
+          ai_paused_by?: string | null
+          ai_paused_reason?: string | null
           assigned_team?: Database["public"]["Enums"]["team_assignment"] | null
           assigned_user_id?: string | null
           contact_id: string
@@ -244,6 +252,10 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          ai_paused?: boolean
+          ai_paused_at?: string | null
+          ai_paused_by?: string | null
+          ai_paused_reason?: string | null
           assigned_team?: Database["public"]["Enums"]["team_assignment"] | null
           assigned_user_id?: string | null
           contact_id?: string

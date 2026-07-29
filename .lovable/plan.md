@@ -1,49 +1,93 @@
-## Aplicar identidade visual Vet+
 
-Trocar a paleta atual (ciano/roxo escuro) pela paleta Vet+ e substituir o logo/favicon pelo enviado.
+# WhatsApp Coexistência + Pausa Manual da Nina
 
-### Paleta
-- `#6CC8C0` — cor primária (turquesa suave)
-- `#D8E6E6` — accent/secundária (azul-esverdeado claro)
-- `#EEE7CA` — destaque quente (bege)
-- `#F3F3F3` — neutro claro
-- Preto/carvão para contraste do logo
+Objetivo: permitir que o mesmo número do WhatsApp funcione ao mesmo tempo no app WhatsApp Business (celular) e via Cloud API, e quando um atendente responder pelo celular a Nina para de responder naquela conversa até ser reativada manualmente.
 
-### Decisão de tema
-Manter o app em **dark mode** (como está hoje), usando `#6CC8C0` como primário sobre fundo escuro, e `#EEE7CA` como accent quente para ícones/badges. Isso preserva toda a UI existente (sidebar, cards, gradientes) sem quebrar contraste. Se preferir migrar para tema claro usando `#F3F3F3` como background, me avise antes de eu implementar.
+## 1. Onboarding: Embedded Signup com Coexistência
 
-### Mudanças
+Substituir os 3 inputs manuais (Access Token, Phone Number ID, WABA ID) em `StepWhatsApp.tsx` por um botão **"Conectar WhatsApp Business"** que abre o popup oficial da Meta (Facebook Login for Business + WhatsApp Embedded Signup).
 
-1. **`src/index.css`**
-   - Reescrever tokens HSL de `:root` e `.dark`:
-     - `--primary`: HSL de `#6CC8C0`
-     - `--accent`: HSL de `#EEE7CA` (destaque quente) — substitui o roxo
-     - `--ring`: igual ao primary
-     - `--sidebar-primary` / `--sidebar-ring`: novo primary
-   - Ajustar cor da scrollbar para tom neutro compatível.
+- Adicionar SDK do Facebook (`facebook-jssdk`) carregado sob demanda no step.
+- Chamar `FB.login` com `config_id` do app Meta e `extras: { setup: { solutionType: "COEXISTENCE" } }` — esse parâmetro é o que ativa o fluxo coexistente (o usuário verá a tela de escanear QR no celular durante o signup).
+- Escutar `message` do window para capturar `phone_number_id` e `waba_id` retornados pelo Embedded Signup.
+- Nova edge function `whatsapp-embedded-signup` que troca o `code` retornado pelo `access_token` de longa duração usando `App ID` + `App Secret` da Meta (novos secrets: `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID_COEXISTENCE`), assina o webhook automaticamente via Graph API (`POST /{waba_id}/subscribed_apps`) e grava tudo em `nina_settings`.
+- Manter os 3 campos manuais como fallback recolhido ("Configuração avançada") para quem já tem token.
 
-2. **Logo Vet+**
-   - Subir `WhatsApp_Image_2023-05-23_at_11.51.30.jpeg` via `lovable-assets` como `src/assets/logo-vetmais.png.asset.json` (converter em PNG com fundo transparente não é possível sem edição; usaremos a imagem como está).
-   - Substituir em `src/components/Sidebar.tsx`:
-     - `viaIcon` → novo logo Vet+ (dentro do container gradiente atual)
-     - `viaLogoWhite` (rodapé) → mesmo logo Vet+ em opacidade reduzida
-   - Substituir em `src/pages/Auth.tsx` o `src/assets/icon-via.png` pelo novo logo.
+## 2. Detecção de resposta humana (message_echoes)
 
-3. **Favicon**
-   - Copiar o logo para `public/favicon.png` e garantir `<link rel="icon" href="/favicon.png" type="image/png">` no `index.html` (já está). Remover `public/favicon.ico` se existir.
+O webhook do WhatsApp já recebe `message_echoes` quando alguém envia pelo app do celular. Hoje `whatsapp-webhook` provavelmente ignora — vamos tratar.
 
-4. **Título do app**
-   - `index.html`: `<title>Vet+ | Assistente IA</title>` e ajustar `<meta name="description">` para clínica veterinária.
-   - `metadata.json`: atualizar `name` e `description` para Vet+.
+- Em `supabase/functions/whatsapp-webhook/index.ts`:
+  - Detectar payloads com `value.messages[].from == phone_number_id` (echo) ou o campo `message_echoes` da subscription.
+  - Salvar a mensagem em `messages` com `direction = 'outbound_human'` (novo valor) e `sender = 'human_operator'`.
+  - Marcar a conversa correspondente como `ai_paused = true` e gravar `ai_paused_at = now()`, `ai_paused_reason = 'human_reply'`.
+- Garantir que a assinatura do webhook inclui o campo `message_echoes` (feito automaticamente no passo 1 via `subscribed_apps`).
 
-### Fora de escopo
-- Nenhuma mudança em lógica de negócio, hooks ou edge functions.
-- Não vou migrar para tema claro nesta rodada (posso fazer depois se quiser).
+## 3. Schema: pausa por conversa
 
-### Detalhes técnicos
-- Conversões HSL aproximadas:
-  - `#6CC8C0` → `174 45% 60%`
-  - `#D8E6E6` → `180 20% 87%`
-  - `#EEE7CA` → `48 55% 86%`
-  - `#F3F3F3` → `0 0% 95%`
-- `--primary-foreground` fica escuro (`222 84% 5%`) para contraste sobre o turquesa claro.
+Migration adicionando à tabela `conversations`:
+- `ai_paused boolean NOT NULL DEFAULT false`
+- `ai_paused_at timestamptz`
+- `ai_paused_reason text` (`'human_reply'` | `'manual'`)
+- `ai_paused_by uuid` (user que pausou manualmente, nullable)
+
+E um novo valor no enum/campo `direction` de `messages` para `outbound_human` (se hoje é texto livre, só documentar; se é enum, alterar).
+
+## 4. Nina respeita a pausa
+
+Em `supabase/functions/nina-orchestrator/index.ts`, no início do processamento de cada mensagem:
+- Buscar `conversations.ai_paused` da conversa.
+- Se `true`: pular geração de resposta, marcar a fila como `skipped` com motivo `ai_paused`, e **não** enviar nada pro WhatsApp.
+- Log estruturado para aparecer no health-check.
+
+## 5. UI do chat: badge + botão "Reativar IA"
+
+Em `src/components/ChatInterface.tsx`:
+- Ler `ai_paused` da conversa ativa (já vem via realtime).
+- Quando pausada: mostrar banner no topo do chat — *"Nina pausada — atendimento humano em andamento"* — com botão **"Reativar Nina"**.
+- Clicar reativa: `UPDATE conversations SET ai_paused = false, ai_paused_at = null, ai_paused_reason = null WHERE id = ?`.
+- Mensagens com `direction = 'outbound_human'` renderizam com estilo diferente das da Nina (ex: badge "Você" em vez de "Nina", cor neutra).
+
+## 6. Secrets necessários
+
+Serão solicitados via `add_secret` depois que o plano for aprovado, com instruções de onde pegar:
+- `META_APP_ID` — Meta for Developers → seu app → Configurações → Básico.
+- `META_APP_SECRET` — mesma tela (revelar).
+- `META_CONFIG_ID_COEXISTENCE` — precisa criar uma "Configuração" no Facebook Login for Business com solução WhatsApp Embedded Signup em modo Coexistência.
+
+## Detalhes técnicos
+
+```text
+Fluxo Embedded Signup Coexistência
+──────────────────────────────────
+[Onboarding UI] --FB.login(config_id, COEXISTENCE)--> [Popup Meta]
+                                                              │
+                              usuário escaneia QR no celular ─┤
+                                                              ▼
+[Onboarding UI] <---- code + phone_number_id + waba_id -------┘
+        │
+        └── POST /functions/whatsapp-embedded-signup { code, phone_number_id, waba_id }
+                        │
+                        ├─ POST graph.facebook.com/oauth/access_token (code → long-lived token)
+                        ├─ POST /{waba_id}/subscribed_apps (assina webhook, inclui message_echoes)
+                        └─ UPSERT nina_settings
+
+Fluxo Pausa
+───────────
+WhatsApp app (celular) ── envia msg ──> Meta ── webhook message_echo ──> whatsapp-webhook
+                                                                              │
+                                                                              ├─ insert message (direction=outbound_human)
+                                                                              └─ UPDATE conversations SET ai_paused=true
+nina-orchestrator ── vê ai_paused=true ──> skip
+UI ── badge + botão "Reativar" ──> UPDATE ai_paused=false
+```
+
+Arquivos afetados:
+- `src/components/onboarding/StepWhatsApp.tsx` — botão Embedded Signup + fallback manual recolhido.
+- `src/components/ChatInterface.tsx` — banner de pausa + botão reativar + estilo `outbound_human`.
+- `supabase/functions/whatsapp-embedded-signup/index.ts` — nova.
+- `supabase/functions/whatsapp-webhook/index.ts` — tratar echoes e pausar.
+- `supabase/functions/nina-orchestrator/index.ts` — respeitar `ai_paused`.
+- Migration: colunas em `conversations` + valor `outbound_human`.
+
+Fora do escopo: coexistência via BSP (só faz sentido se você usar um provider tipo Twilio/360dialog no meio, que não é o caso).
