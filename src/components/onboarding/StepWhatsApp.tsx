@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { MessageSquare, Key, Phone, ExternalLink, Copy, Check, ChevronDown, Building2, Sparkles, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { MessageSquare, ExternalLink, CheckCircle2, Loader2, ChevronDown, Key, Phone, Building2, Copy, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/Button';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface StepWhatsAppProps {
   accessToken: string;
@@ -17,34 +19,26 @@ interface StepWhatsAppProps {
   webhookUrl: string;
 }
 
+// ⚠️ App Meta público. Precisa estar exposto no cliente para o FB SDK.
+// Vem do build: defina VITE_META_APP_ID no .env quando registrar o App na Meta.
+const META_APP_ID = import.meta.env.VITE_META_APP_ID as string | undefined;
+const META_CONFIG_ID = import.meta.env.VITE_META_CONFIG_ID_COEXISTENCE as string | undefined;
+
+declare global {
+  interface Window {
+    FB?: any;
+    fbAsyncInit?: () => void;
+  }
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.1,
-    },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } },
 } as const;
 
 const itemVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { 
-    opacity: 1, 
-    y: 0,
-    transition: { type: "spring" as const, stiffness: 300, damping: 24 }
-  },
-};
-
-// Generate a unique verify token
-const generateVerifyToken = (): string => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = 'viver-ia-';
-  for (let i = 0; i < 16; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+  visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
 };
 
 export const StepWhatsApp: React.FC<StepWhatsAppProps> = ({
@@ -58,15 +52,108 @@ export const StepWhatsApp: React.FC<StepWhatsAppProps> = ({
   onVerifyTokenChange,
   webhookUrl,
 }) => {
-  const [showWebhook, setShowWebhook] = useState(false);
+  const [fbReady, setFbReady] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [connectedPhone, setConnectedPhone] = useState<string | null>(null);
+  const [showManual, setShowManual] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Auto-generate verify token if empty or default
+  const embeddedSignupEnabled = Boolean(META_APP_ID && META_CONFIG_ID);
+  const alreadyConnected = Boolean(accessToken && phoneNumberId);
+
+  // Carregar Facebook SDK
   useEffect(() => {
-    if (!verifyToken || verifyToken === 'viver-de-ia-nina-webhook') {
-      onVerifyTokenChange(generateVerifyToken());
+    if (!embeddedSignupEnabled) return;
+    if (window.FB) { setFbReady(true); return; }
+
+    window.fbAsyncInit = () => {
+      window.FB.init({
+        appId: META_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: 'v21.0',
+      });
+      setFbReady(true);
+    };
+
+    const id = 'facebook-jssdk';
+    if (!document.getElementById(id)) {
+      const s = document.createElement('script');
+      s.id = id;
+      s.async = true;
+      s.defer = true;
+      s.crossOrigin = 'anonymous';
+      s.src = 'https://connect.facebook.net/en_US/sdk.js';
+      document.body.appendChild(s);
     }
+  }, [embeddedSignupEnabled]);
+
+  // Escutar session_info messages do popup do Meta
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (!event.origin.endsWith('facebook.com')) return;
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data?.type === 'WA_EMBEDDED_SIGNUP') {
+          console.log('[Embedded Signup] session event:', data);
+        }
+      } catch {
+        // não é JSON, ignora
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
   }, []);
+
+  const launchSignup = useCallback(() => {
+    if (!window.FB || !META_CONFIG_ID) return;
+    setConnecting(true);
+
+    window.FB.login(
+      (response: any) => {
+        if (response?.authResponse?.code) {
+          exchangeCode(response.authResponse.code);
+        } else {
+          setConnecting(false);
+          if (response?.status !== 'unknown') {
+            toast.error('Conexão cancelada ou falhou');
+          }
+        }
+      },
+      {
+        config_id: META_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: { solutionType: 'COEXISTENCE' },
+          featureType: 'whatsapp_business_app_onboarding',
+          sessionInfoVersion: '3',
+        },
+      },
+    );
+  }, []);
+
+  const exchangeCode = async (code: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-embedded-signup', {
+        body: { code },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      onAccessTokenChange('***conectado***'); // placeholder; token real fica no backend
+      onPhoneNumberIdChange(data.phone_number_id || '');
+      onBusinessAccountIdChange(data.waba_id || '');
+      onVerifyTokenChange(data.verify_token || '');
+      setConnectedPhone(data.display_phone_number || data.phone_number_id);
+      toast.success(`WhatsApp conectado: ${data.display_phone_number || 'ativo'}`);
+    } catch (e: any) {
+      console.error('[Embedded Signup] exchange error:', e);
+      toast.error(e?.message || 'Falha ao conectar WhatsApp');
+    } finally {
+      setConnecting(false);
+    }
+  };
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -74,173 +161,170 @@ export const StepWhatsApp: React.FC<StepWhatsAppProps> = ({
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const regenerateToken = () => {
-    onVerifyTokenChange(generateVerifyToken());
-  };
-
   return (
-    <motion.div 
-      className="space-y-8"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-    >
+    <motion.div className="space-y-8" variants={containerVariants} initial="hidden" animate="visible">
       <motion.div variants={itemVariants} className="text-center mb-8">
-        <motion.div 
+        <motion.div
           className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-green-500/20 border border-emerald-500/30 flex items-center justify-center"
           whileHover={{ scale: 1.05, rotate: 5 }}
-          transition={{ type: "spring", stiffness: 400 }}
+          transition={{ type: 'spring', stiffness: 400 }}
         >
           <MessageSquare className="w-8 h-8 text-emerald-400" />
         </motion.div>
-        <h3 className="text-xl font-semibold text-foreground mb-2">WhatsApp Cloud API</h3>
+        <h3 className="text-xl font-semibold text-foreground mb-2">Conectar WhatsApp Business</h3>
         <p className="text-muted-foreground text-sm max-w-md mx-auto">
-          Conecte sua conta do WhatsApp Business para enviar e receber mensagens.
+          Conecte em modo <strong>Coexistência</strong> — você continua usando o app do WhatsApp no celular normalmente, e a Nina responde em paralelo.
         </p>
       </motion.div>
 
-      <div className="space-y-6 max-w-md mx-auto">
-        <motion.div variants={itemVariants} className="space-y-2">
-          <Label htmlFor="accessToken" className="flex items-center gap-2">
-            <Key className="w-4 h-4 text-muted-foreground" />
-            Access Token
-          </Label>
-          <Input
-            id="accessToken"
-            type="password"
-            value={accessToken}
-            onChange={(e) => onAccessTokenChange(e.target.value)}
-            placeholder="EAAxxxxxxxx..."
-            className="font-mono text-sm focus:ring-emerald-500"
-          />
-        </motion.div>
-
-        <motion.div variants={itemVariants} className="space-y-2">
-          <Label htmlFor="phoneNumberId" className="flex items-center gap-2">
-            <Phone className="w-4 h-4 text-muted-foreground" />
-            Phone Number ID
-          </Label>
-          <Input
-            id="phoneNumberId"
-            value={phoneNumberId}
-            onChange={(e) => onPhoneNumberIdChange(e.target.value)}
-            placeholder="123456789012345"
-            className="font-mono text-sm focus:ring-emerald-500"
-          />
-        </motion.div>
-
-        <motion.div variants={itemVariants} className="space-y-2">
-          <Label htmlFor="businessAccountId" className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-muted-foreground" />
-            Business Account ID (WABA)
-          </Label>
-          <Input
-            id="businessAccountId"
-            value={businessAccountId}
-            onChange={(e) => onBusinessAccountIdChange(e.target.value)}
-            placeholder="123456789012345"
-            className="font-mono text-sm focus:ring-emerald-500"
-          />
-          <p className="text-xs text-muted-foreground">
-            Encontrado em Meta Business Suite → Configurações → WhatsApp Accounts
-          </p>
-        </motion.div>
-
-        {/* Webhook Configuration (Collapsible) */}
-        <motion.div variants={itemVariants} className="pt-4 border-t border-border">
-          <motion.button
-            onClick={() => setShowWebhook(!showWebhook)}
-            whileHover={{ x: 4 }}
-            className="flex items-center justify-between w-full text-left text-sm text-muted-foreground hover:text-foreground transition-colors"
+      <div className="max-w-md mx-auto space-y-6">
+        {/* Estado: conectado */}
+        {(alreadyConnected || connectedPhone) && (
+          <motion.div
+            variants={itemVariants}
+            className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3"
           >
-            <span className="flex items-center gap-2">
-              <ExternalLink className="w-4 h-4" />
-              Configuração de Webhook
-            </span>
-            <motion.div
-              animate={{ rotate: showWebhook ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
+            <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-emerald-100">WhatsApp conectado</p>
+              <p className="text-xs text-emerald-300/80 font-mono">
+                {connectedPhone || phoneNumberId}
+              </p>
+            </div>
+            {embeddedSignupEnabled && (
+              <Button variant="ghost" size="sm" onClick={launchSignup} disabled={!fbReady || connecting}>
+                Trocar
+              </Button>
+            )}
+          </motion.div>
+        )}
+
+        {/* Estado: não conectado + Embedded Signup habilitado */}
+        {!alreadyConnected && !connectedPhone && embeddedSignupEnabled && (
+          <motion.div variants={itemVariants}>
+            <Button
+              onClick={launchSignup}
+              disabled={!fbReady || connecting}
+              className="w-full bg-[#1877F2] hover:bg-[#166FE0] text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-3 shadow-lg shadow-blue-500/20 disabled:opacity-60"
             >
+              {connecting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Conectando…
+                </>
+              ) : !fbReady ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Carregando Facebook…
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                  Conectar com Facebook
+                </>
+              )}
+            </Button>
+            <p className="text-[11px] text-muted-foreground text-center mt-3">
+              Autorização oficial da Meta • Modo Coexistência • Não interrompe o app no celular
+            </p>
+          </motion.div>
+        )}
+
+        {/* Aviso: Embedded Signup ainda não configurado */}
+        {!embeddedSignupEnabled && !alreadyConnected && (
+          <motion.div
+            variants={itemVariants}
+            className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-100 space-y-2"
+          >
+            <p className="font-semibold">Conexão automática ainda não disponível</p>
+            <p className="text-amber-200/80 leading-relaxed">
+              Para o botão "Conectar com Facebook" funcionar, você precisa registrar um App na Meta uma única vez e me passar 3 valores (App ID, App Secret, Configuration ID de Coexistência). Enquanto isso, use o preenchimento manual abaixo.
+            </p>
+          </motion.div>
+        )}
+
+        {/* Preenchimento manual (colapsável, fallback) */}
+        <motion.div variants={itemVariants} className="pt-2 border-t border-border">
+          <button
+            onClick={() => setShowManual(!showManual)}
+            className="flex items-center justify-between w-full text-left text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+          >
+            <span>Preencher manualmente (avançado)</span>
+            <motion.div animate={{ rotate: showManual ? 180 : 0 }} transition={{ duration: 0.2 }}>
               <ChevronDown className="w-4 h-4" />
             </motion.div>
-          </motion.button>
+          </button>
 
           <AnimatePresence>
-            {showWebhook && (
-              <motion.div 
+            {showManual && (
+              <motion.div
                 initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
+                animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="mt-4 space-y-4">
+                <div className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label className="text-muted-foreground text-xs">Webhook URL</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={webhookUrl}
-                        readOnly
-                        className="bg-background border-border font-mono text-xs flex-1"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyToClipboard(webhookUrl, 'url')}
-                        className="px-3"
-                      >
-                        {copied === 'url' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="verifyToken" className="text-muted-foreground text-xs flex items-center gap-2">
-                      Verify Token
-                      <span className="text-emerald-400 flex items-center gap-1 text-[10px]">
-                        <Sparkles className="w-3 h-3" />
-                        Auto-gerado
-                      </span>
+                    <Label htmlFor="accessToken" className="flex items-center gap-2 text-xs">
+                      <Key className="w-3.5 h-3.5" /> Access Token
                     </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="verifyToken"
-                        value={verifyToken}
-                        readOnly
-                        className="bg-background border-border font-mono text-xs flex-1"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyToClipboard(verifyToken, 'token')}
-                        className="px-3"
-                        disabled={!verifyToken}
-                      >
-                        {copied === 'token' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={regenerateToken}
-                        className="px-3"
-                        title="Regenerar token"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      Token gerado automaticamente. Use este mesmo valor no Meta Business.
-                    </p>
+                    <Input
+                      id="accessToken"
+                      type="password"
+                      value={accessToken}
+                      onChange={(e) => onAccessTokenChange(e.target.value)}
+                      placeholder="EAAxxxxxxxx..."
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phoneNumberId" className="flex items-center gap-2 text-xs">
+                      <Phone className="w-3.5 h-3.5" /> Phone Number ID
+                    </Label>
+                    <Input
+                      id="phoneNumberId"
+                      value={phoneNumberId}
+                      onChange={(e) => onPhoneNumberIdChange(e.target.value)}
+                      placeholder="123456789012345"
+                      className="font-mono text-xs"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="businessAccountId" className="flex items-center gap-2 text-xs">
+                      <Building2 className="w-3.5 h-3.5" /> WABA ID
+                    </Label>
+                    <Input
+                      id="businessAccountId"
+                      value={businessAccountId}
+                      onChange={(e) => onBusinessAccountIdChange(e.target.value)}
+                      placeholder="123456789012345"
+                      className="font-mono text-xs"
+                    />
                   </div>
 
-                  <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                    <p className="text-xs text-primary font-medium mb-2">Como configurar:</p>
-                    <ol className="text-xs text-primary/80 space-y-1 list-decimal list-inside">
-                      <li>Copie a Webhook URL e o Verify Token</li>
-                      <li>Acesse o <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">Meta Business Dashboard</a></li>
-                      <li>Vá em WhatsApp → Configuration → Webhook</li>
-                      <li>Cole os valores e selecione: messages, message_echoes</li>
-                    </ol>
+                  {/* Webhook info */}
+                  <div className="pt-3 border-t border-border space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-muted-foreground text-[11px]">Webhook URL</Label>
+                      <div className="flex gap-2">
+                        <Input value={webhookUrl} readOnly className="font-mono text-[11px] flex-1" />
+                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(webhookUrl, 'url')} className="px-2">
+                          {copied === 'url' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-muted-foreground text-[11px]">Verify Token</Label>
+                      <div className="flex gap-2">
+                        <Input value={verifyToken} readOnly className="font-mono text-[11px] flex-1" />
+                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(verifyToken, 'token')} className="px-2" disabled={!verifyToken}>
+                          {copied === 'token' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -249,18 +333,17 @@ export const StepWhatsApp: React.FC<StepWhatsAppProps> = ({
         </motion.div>
       </div>
 
-      {/* Tutorial Link */}
+      {/* Tutorial */}
       <motion.div variants={itemVariants} className="text-center pt-4">
-        <motion.a
-          href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
+        <a
+          href="https://developers.facebook.com/docs/whatsapp/embedded-signup"
           target="_blank"
           rel="noopener noreferrer"
-          whileHover={{ scale: 1.02 }}
-          className="inline-flex items-center gap-2 text-sm text-primary hover:text-primary/80 transition-colors"
+          className="inline-flex items-center gap-2 text-xs text-primary hover:text-primary/80 transition-colors"
         >
-          <ExternalLink className="w-4 h-4" />
-          Como obter as credenciais do WhatsApp
-        </motion.a>
+          <ExternalLink className="w-3.5 h-3.5" />
+          Documentação Meta Embedded Signup (Coexistência)
+        </a>
       </motion.div>
     </motion.div>
   );
