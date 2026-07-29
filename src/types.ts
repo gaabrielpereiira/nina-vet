@@ -293,6 +293,8 @@ export interface UIConversation {
   messages: UIMessage[];
   clientMemory: ClientMemory;
   notes: string | null;
+  aiPaused: boolean;
+  aiPausedReason: string | null;
 }
 
 export interface UIMessage {
