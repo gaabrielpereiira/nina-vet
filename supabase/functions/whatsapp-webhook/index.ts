@@ -58,7 +58,8 @@ serve(async (req) => {
       const entry = body.entry?.[0];
       const changes = entry?.changes?.[0];
       const value = changes?.value;
-      
+      const field = changes?.field;
+
       if (!value) {
         console.log('[Webhook] No value in payload, ignoring');
         return new Response(JSON.stringify({ status: 'ignored' }), { 
@@ -66,6 +67,89 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         });
       }
+
+      // ─── Handle message_echoes (mensagens enviadas pelo app WhatsApp Business no celular
+      // em modo Coexistência). Salva a mensagem como se fosse do operador humano
+      // e pausa a Nina naquela conversa até reativação manual.
+      const echoes = value.message_echoes || (field === 'message_echoes' ? value.messages : null);
+      if (echoes && Array.isArray(echoes) && echoes.length > 0) {
+        console.log('[Webhook] Processing', echoes.length, 'message_echo(es)');
+        for (const echo of echoes) {
+          // Em echoes, `to` é o número do cliente (destinatário da msg enviada pelo celular)
+          const clientPhone: string | undefined = echo.to || echo.recipient_id;
+          if (!clientPhone) {
+            console.warn('[Webhook] Echo without recipient, skipping', echo);
+            continue;
+          }
+
+          // Buscar contato
+          const { data: contact } = await supabase
+            .from('contacts')
+            .select('id')
+            .eq('phone_number', clientPhone)
+            .maybeSingle();
+          if (!contact) {
+            console.warn('[Webhook] Echo for unknown contact:', clientPhone);
+            continue;
+          }
+
+          // Buscar/criar conversa ativa
+          let { data: conversation } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('contact_id', contact.id)
+            .eq('is_active', true)
+            .maybeSingle();
+          if (!conversation) continue;
+
+          // Conteúdo da echo
+          let content = '';
+          let type = 'text';
+          switch (echo.type) {
+            case 'text': content = echo.text?.body || ''; break;
+            case 'image': content = echo.image?.caption || '[imagem enviada]'; type = 'image'; break;
+            case 'audio': content = '[áudio enviado]'; type = 'audio'; break;
+            case 'video': content = echo.video?.caption || '[vídeo enviado]'; type = 'video'; break;
+            case 'document': content = echo.document?.filename || '[documento enviado]'; type = 'document'; break;
+            default: content = `[${echo.type}]`;
+          }
+
+          // Inserir mensagem como human (operador respondeu pelo celular)
+          const { error: echoMsgErr } = await supabase.from('messages').insert({
+            conversation_id: conversation.id,
+            whatsapp_message_id: echo.id,
+            content,
+            type,
+            from_type: 'human',
+            status: 'sent',
+            sent_at: new Date(parseInt(echo.timestamp) * 1000).toISOString(),
+            metadata: { source: 'whatsapp_app_echo' },
+          });
+          if (echoMsgErr && echoMsgErr.code !== '23505') {
+            console.error('[Webhook] Error saving echo message:', echoMsgErr);
+          }
+
+          // Pausar Nina naquela conversa
+          await supabase
+            .from('conversations')
+            .update({
+              ai_paused: true,
+              ai_paused_at: new Date().toISOString(),
+              ai_paused_reason: 'human_reply',
+              status: 'human',
+              last_message_at: new Date().toISOString(),
+            })
+            .eq('id', conversation.id);
+
+          console.log('[Webhook] AI paused for conversation:', conversation.id);
+        }
+
+        return new Response(JSON.stringify({ status: 'processed_echoes' }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
 
       const messages = value.messages;
       const contacts = value.contacts;
