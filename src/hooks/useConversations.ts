@@ -489,6 +489,25 @@ export function useConversations() {
     }
   }, [conversations]);
 
+  // Set AI paused (used to reactivate Nina after human took over from mobile app)
+  const setAiPaused = useCallback(async (
+    conversationId: string,
+    paused: boolean,
+    reason: 'human_reply' | 'manual' | null = 'manual'
+  ) => {
+    // Optimistic
+    setConversations(prev => prev.map(c =>
+      c.id === conversationId ? { ...c, aiPaused: paused, aiPausedReason: paused ? reason : null } : c
+    ));
+    try {
+      await api.setConversationAiPaused(conversationId, paused, reason);
+      toast.success(paused ? 'Nina pausada' : 'Nina reativada');
+    } catch (err) {
+      console.error('[useConversations] Error setting ai_paused:', err);
+      toast.error('Erro ao atualizar estado da Nina');
+    }
+  }, []);
+
   return {
     conversations,
     loading,
@@ -498,6 +517,7 @@ export function useConversations() {
     updateStatus,
     markAsRead,
     assignConversation,
+    setAiPaused,
     refetch: fetchConversations
   };
 }
