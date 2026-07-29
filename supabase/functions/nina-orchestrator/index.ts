@@ -133,7 +133,7 @@ serve(async (req) => {
         // Get user_id from conversation to fetch correct settings
         const { data: conversation } = await supabase
           .from('conversations')
-          .select('user_id')
+          .select('user_id, ai_paused')
           .eq('id', item.conversation_id)
           .single();
 
@@ -145,6 +145,21 @@ serve(async (req) => {
               status: 'failed', 
               processed_at: new Date().toISOString(),
               error_message: 'Conversation not found'
+            })
+            .eq('id', item.id);
+          continue;
+        }
+
+        // Se a Nina está pausada nesta conversa (resposta humana pelo celular
+        // ou pausa manual pelo operador), pular sem responder.
+        if (conversation.ai_paused) {
+          console.log('[Nina] Skipping - AI paused for conversation:', item.conversation_id);
+          await supabase
+            .from('nina_processing_queue')
+            .update({
+              status: 'completed',
+              processed_at: new Date().toISOString(),
+              error_message: 'ai_paused',
             })
             .eq('id', item.id);
           continue;
