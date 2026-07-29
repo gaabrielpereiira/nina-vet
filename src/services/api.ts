@@ -1387,6 +1387,30 @@ export const api = {
   },
 
   /**
+   * Set AI paused state for a conversation.
+   * When paused=true, nina-orchestrator will skip processing messages of this conversation.
+   */
+  setConversationAiPaused: async (
+    conversationId: string,
+    paused: boolean,
+    reason: 'human_reply' | 'manual' | null = null
+  ): Promise<void> => {
+    const { error } = await supabase
+      .from('conversations')
+      .update({
+        ai_paused: paused,
+        ai_paused_at: paused ? new Date().toISOString() : null,
+        ai_paused_reason: paused ? reason : null,
+      })
+      .eq('id', conversationId);
+
+    if (error) {
+      console.error('[API] Error updating ai_paused:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Mark all unread messages in a conversation as read
    */
   markMessagesAsRead: async (conversationId: string): Promise<void> => {
