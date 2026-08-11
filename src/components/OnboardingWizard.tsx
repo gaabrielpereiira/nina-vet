@@ -198,11 +198,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
   const [companyName, setCompanyName] = useState('');
   const [sdrName, setSdrName] = useState('');
   
-  // Form state - WhatsApp
-  const [accessToken, setAccessToken] = useState('');
-  const [phoneNumberId, setPhoneNumberId] = useState('');
-  const [businessAccountId, setBusinessAccountId] = useState('');
-  const [verifyToken, setVerifyToken] = useState('');
+  // Form state - WhatsApp (Zernio)
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [whatsappDisplayPhone, setWhatsappDisplayPhone] = useState<string | null>(null);
   
   // Form state - Agent
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -222,8 +220,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
   const [businessHoursStart, setBusinessHoursStart] = useState('09:00');
   const [businessHoursEnd, setBusinessHoursEnd] = useState('18:00');
   const [businessDays, setBusinessDays] = useState<number[]>([1, 2, 3, 4, 5]);
-
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
   // Initialize system and load settings
   useEffect(() => {
@@ -245,11 +241,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
           setCompanyName(data.company_name || '');
           setSdrName(data.sdr_name || '');
           
-          // WhatsApp
-          setAccessToken(data.whatsapp_access_token || '');
-          setPhoneNumberId(data.whatsapp_phone_number_id || '');
-          setBusinessAccountId((data as any).whatsapp_business_account_id || '');
-          setVerifyToken(data.whatsapp_verify_token || '');
+          // WhatsApp (Zernio)
+          setWhatsappConnected(Boolean((data as any).zernio_account_id));
+          setWhatsappDisplayPhone((data as any).zernio_display_phone_number || null);
           
           // Agent - usar prompt padrão se vazio
           setSystemPrompt(data.system_prompt_override || DEFAULT_NINA_PROMPT);
@@ -296,14 +290,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
         if (!sdrName?.trim()) issues.push('Nome do SDR está vazio');
         break;
       case 1: // WhatsApp
-        console.log('[OnboardingWizard] Step 1 (WhatsApp) values:', { 
-          accessToken: accessToken ? `${accessToken.substring(0, 10)}...` : 'EMPTY',
-          phoneNumberId: phoneNumberId || 'EMPTY',
-          businessAccountId: businessAccountId || 'EMPTY',
-          verifyToken: verifyToken || 'EMPTY'
-        });
-        if (!accessToken?.trim()) issues.push('Access Token está vazio');
-        if (!phoneNumberId?.trim()) issues.push('Phone Number ID está vazio');
+        console.log('[OnboardingWizard] Step 1 (WhatsApp) values:', { whatsappConnected, whatsappDisplayPhone });
+        if (!whatsappConnected) issues.push('WhatsApp ainda não foi conectado via Zernio');
         break;
       case 2: // Agent
         console.log('[OnboardingWizard] Step 2 (Agent) values:', { 
@@ -332,7 +320,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
     }
     
     return { valid: issues.length === 0, issues };
-  }, [companyName, sdrName, accessToken, phoneNumberId, businessAccountId, verifyToken, 
+  }, [companyName, sdrName, whatsappConnected, whatsappDisplayPhone,
       systemPrompt, aiModelMode, elevenLabsApiKey, audioResponseEnabled,
       timezone, businessHoursStart, businessHoursEnd, businessDays]);
 
@@ -353,11 +341,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
       // Identity
       companyName: companyName || '(empty)',
       sdrName: sdrName || '(empty)',
-      // WhatsApp
-      accessToken: accessToken ? `${accessToken.substring(0, 15)}...` : '(empty)',
-      phoneNumberId: phoneNumberId || '(empty)',
-      businessAccountId: businessAccountId || '(empty)',
-      verifyToken: verifyToken || '(empty)',
+      // WhatsApp (conexão via Zernio, persistida separadamente)
+      whatsappConnected,
+      whatsappDisplayPhone: whatsappDisplayPhone || '(empty)',
       // Agent
       systemPrompt: systemPrompt ? `${systemPrompt.substring(0, 50)}...` : '(empty)',
       aiModelMode,
@@ -377,7 +363,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
       // Single-tenant: busca configuração global (user_id pode ser NULL)
       const { data: existing, error: fetchError } = await supabase
         .from('nina_settings')
-        .select('id, user_id, company_name, whatsapp_phone_number_id')
+        .select('id, user_id, company_name, zernio_account_id')
         .limit(1)
         .maybeSingle();
 
@@ -391,21 +377,16 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
         id: existing.id,
         user_id: existing.user_id,
         company_name: existing.company_name,
-        whatsapp_phone_number_id: existing.whatsapp_phone_number_id ? '***' : null
+        zernio_account_id: existing.zernio_account_id ? '***' : null
       } : 'NONE');
 
       // Step 2: Build settings object with explicit values
+      // (a conexão do WhatsApp via Zernio é persistida separadamente por zernio-save-connection/zernio-webhook)
       const settings = {
         // Identity - trim whitespace
         company_name: companyName?.trim() || null,
         sdr_name: sdrName?.trim() || null,
-        
-        // WhatsApp - trim whitespace
-        whatsapp_access_token: accessToken?.trim() || null,
-        whatsapp_phone_number_id: phoneNumberId?.trim() || null,
-        whatsapp_business_account_id: businessAccountId?.trim() || null,
-        whatsapp_verify_token: verifyToken?.trim() || null,
-        
+
         // Agent - use default prompt if empty
         system_prompt_override: systemPrompt?.trim() || DEFAULT_NINA_PROMPT,
         ai_model_mode: aiModelMode || 'flash',
@@ -433,8 +414,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
       console.log('[OnboardingWizard] Step 2: Settings object built:', {
         company_name: settings.company_name,
         sdr_name: settings.sdr_name,
-        whatsapp_phone_number_id: settings.whatsapp_phone_number_id ? '✓ SET' : '✗ EMPTY',
-        whatsapp_access_token: settings.whatsapp_access_token ? '✓ SET' : '✗ EMPTY',
+        whatsappConnected,
         system_prompt_override: settings.system_prompt_override ? '✓ SET' : '✗ EMPTY',
         elevenlabs_api_key: settings.elevenlabs_api_key ? '✓ SET' : '✗ EMPTY',
         is_active: settings.is_active,
@@ -480,8 +460,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
         id: result.data.id,
         company_name: result.data.company_name,
         sdr_name: result.data.sdr_name,
-        whatsapp_phone_number_id: result.data.whatsapp_phone_number_id ? '✓ SAVED' : '✗ NOT SAVED',
-        whatsapp_access_token: result.data.whatsapp_access_token ? '✓ SAVED' : '✗ NOT SAVED',
         system_prompt_override: result.data.system_prompt_override ? '✓ SAVED' : '✗ NOT SAVED',
         is_active: result.data.is_active,
       });
@@ -490,7 +468,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
       console.log('[OnboardingWizard] Step 5: Verifying saved data...');
       const { data: verifyData, error: verifyError } = await supabase
         .from('nina_settings')
-        .select('company_name, sdr_name, whatsapp_phone_number_id, whatsapp_access_token, system_prompt_override, is_active')
+        .select('company_name, sdr_name, system_prompt_override, is_active')
         .eq('id', result.data.id)
         .maybeSingle();
 
@@ -500,8 +478,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
         console.log('[OnboardingWizard] ✓ Verification result:', {
           company_name: verifyData?.company_name || '(null)',
           sdr_name: verifyData?.sdr_name || '(null)',
-          whatsapp_phone_number_id: verifyData?.whatsapp_phone_number_id ? '✓ VERIFIED' : '✗ NULL',
-          whatsapp_access_token: verifyData?.whatsapp_access_token ? '✓ VERIFIED' : '✗ NULL',
           system_prompt_override: verifyData?.system_prompt_override ? '✓ VERIFIED' : '✗ NULL',
           is_active: verifyData?.is_active,
         });
@@ -509,12 +485,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
         // Check if critical fields were saved
         if (settings.company_name && !verifyData?.company_name) {
           console.error('[OnboardingWizard] ❌ CRITICAL: company_name not persisted!');
-        }
-        if (settings.whatsapp_phone_number_id && !verifyData?.whatsapp_phone_number_id) {
-          console.error('[OnboardingWizard] ❌ CRITICAL: whatsapp_phone_number_id not persisted!');
-        }
-        if (settings.whatsapp_access_token && !verifyData?.whatsapp_access_token) {
-          console.error('[OnboardingWizard] ❌ CRITICAL: whatsapp_access_token not persisted!');
         }
       }
       
@@ -532,7 +502,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
       setIsSaving(false);
     }
   }, [
-    user, activeStep, companyName, sdrName, accessToken, phoneNumberId, businessAccountId, verifyToken, 
+    user, activeStep, companyName, sdrName,
     systemPrompt, aiModelMode, elevenLabsApiKey, elevenLabsVoiceId, elevenLabsModel,
     audioResponseEnabled, elevenLabsStability, elevenLabsSimilarityBoost, elevenLabsSpeed,
     timezone, businessHoursStart, businessHoursEnd, businessDays, refetch
@@ -621,15 +591,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ isOpen, onCl
       case 1:
         return (
           <StepWhatsApp
-            accessToken={accessToken}
-            phoneNumberId={phoneNumberId}
-            businessAccountId={businessAccountId}
-            verifyToken={verifyToken}
-            onAccessTokenChange={setAccessToken}
-            onPhoneNumberIdChange={setPhoneNumberId}
-            onBusinessAccountIdChange={setBusinessAccountId}
-            onVerifyTokenChange={setVerifyToken}
-            webhookUrl={webhookUrl}
+            connected={whatsappConnected}
+            displayPhoneNumber={whatsappDisplayPhone}
+            onConnectedChange={(connected, displayPhoneNumber) => {
+              setWhatsappConnected(connected);
+              setWhatsappDisplayPhone(displayPhoneNumber);
+            }}
           />
         );
       case 2:

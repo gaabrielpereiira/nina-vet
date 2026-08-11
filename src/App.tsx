@@ -9,6 +9,7 @@ import Team from './components/Team';
 import Scheduling from './components/Scheduling';
 import Kanban from './components/Kanban';
 import Auth from './pages/Auth';
+import WhatsAppCallback from './pages/WhatsAppCallback';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import { CompanySettingsProvider } from './hooks/useCompanySettings';
@@ -62,6 +63,7 @@ const App: React.FC = () => {
           <Routes>
             {/* Public Routes */}
             <Route path="/auth" element={<Auth />} />
+            <Route path="/whatsapp/callback" element={<WhatsAppCallback />} />
             
             {/* Protected Routes (With Sidebar) */}
             <Route element={

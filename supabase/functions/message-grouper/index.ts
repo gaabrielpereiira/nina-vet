@@ -75,14 +75,14 @@ serve(async (req) => {
       try {
         console.log(`[MessageGrouper] Processing group for ${phoneNumber} with ${messages.length} messages`);
 
-        // Get the phone_number_id from the first message
+        // Get the Zernio account id (WhatsApp) from the first message
         const phoneNumberId = messages[0].phone_number_id;
 
-        // Get owner settings for this phone_number_id
+        // Get owner settings for this account
         const { data: ownerSettings } = await supabase
           .from('nina_settings')
-          .select('user_id, whatsapp_access_token')
-          .eq('whatsapp_phone_number_id', phoneNumberId)
+          .select('user_id, zernio_account_id')
+          .eq('zernio_account_id', phoneNumberId)
           .maybeSingle();
 
         // Get all message_ids from the queue entries
@@ -254,10 +254,11 @@ async function combineAndTranscribeMessages(
 
     // Handle audio transcription
     if (messageData.type === 'audio') {
-      const audioMediaId = messageData.audio?.id;
-      if (audioMediaId && settings?.whatsapp_access_token && lovableApiKey) {
-        console.log('[MessageGrouper] Transcribing audio:', audioMediaId);
-        const audioBuffer = await downloadWhatsAppMedia(settings, audioMediaId);
+      // Na Zernio, `audio.id` já é a URL autenticada de download (GET /v1/whatsapp/media/{mediaId}).
+      const audioUrl = messageData.audio?.id;
+      if (audioUrl && lovableApiKey) {
+        console.log('[MessageGrouper] Transcribing audio:', audioUrl);
+        const audioBuffer = await downloadWhatsAppMedia(audioUrl);
         if (audioBuffer) {
           const transcription = await transcribeAudio(audioBuffer, lovableApiKey);
           if (transcription) {
@@ -280,39 +281,18 @@ async function combineAndTranscribeMessages(
   return contentParts.join('\n');
 }
 
-// Download media from WhatsApp API
-async function downloadWhatsAppMedia(settings: any, mediaId: string): Promise<ArrayBuffer | null> {
-  if (!settings?.whatsapp_access_token) {
-    console.error('[MessageGrouper] No WhatsApp access token configured');
+// Download media via Zernio (GET /v1/whatsapp/media/{mediaId}, autenticado com a API key da conta)
+async function downloadWhatsAppMedia(mediaUrl: string): Promise<ArrayBuffer | null> {
+  const zernioApiKey = Deno.env.get('ZERNIO_API_KEY');
+  if (!zernioApiKey) {
+    console.error('[MessageGrouper] ZERNIO_API_KEY not configured');
     return null;
   }
 
   try {
-    const mediaInfoResponse = await fetch(
-      `https://graph.facebook.com/v18.0/${mediaId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${settings.whatsapp_access_token}`
-        }
-      }
-    );
-
-    if (!mediaInfoResponse.ok) {
-      console.error('[MessageGrouper] Failed to get media info:', await mediaInfoResponse.text());
-      return null;
-    }
-
-    const mediaInfo = await mediaInfoResponse.json();
-    const mediaUrl = mediaInfo.url;
-
-    if (!mediaUrl) {
-      console.error('[MessageGrouper] No media URL in response');
-      return null;
-    }
-
     const mediaResponse = await fetch(mediaUrl, {
       headers: {
-        'Authorization': `Bearer ${settings.whatsapp_access_token}`
+        'Authorization': `Bearer ${zernioApiKey}`
       }
     });
 

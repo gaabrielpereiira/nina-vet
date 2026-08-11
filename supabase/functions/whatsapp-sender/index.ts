@@ -6,7 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
+const ZERNIO_API = 'https://zernio.com/api/v1';
+const ZERNIO_API_KEY = Deno.env.get('ZERNIO_API_KEY') || '';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -108,7 +109,7 @@ serve(async (req) => {
             if (userId) {
               const { data } = await supabase
                 .from('nina_settings')
-                .select('whatsapp_access_token, whatsapp_phone_number_id')
+                .select('zernio_account_id')
                 .eq('user_id', userId)
                 .maybeSingle();
               settingsData = data;
@@ -119,7 +120,7 @@ serve(async (req) => {
               console.log('[Sender] No user-specific settings, trying global...');
               const { data } = await supabase
                 .from('nina_settings')
-                .select('whatsapp_access_token, whatsapp_phone_number_id')
+                .select('zernio_account_id')
                 .is('user_id', null)
                 .maybeSingle();
               settingsData = data;
@@ -130,8 +131,8 @@ serve(async (req) => {
               console.log('[Sender] No global settings, fetching any with WhatsApp...');
               const { data } = await supabase
                 .from('nina_settings')
-                .select('whatsapp_access_token, whatsapp_phone_number_id')
-                .not('whatsapp_phone_number_id', 'is', null)
+                .select('zernio_account_id')
+                .not('zernio_account_id', 'is', null)
                 .limit(1)
                 .maybeSingle();
               settingsData = data;
@@ -142,8 +143,8 @@ serve(async (req) => {
               throw new Error('Settings not found');
             }
 
-            if (!settingsData.whatsapp_access_token || !settingsData.whatsapp_phone_number_id) {
-              console.error('[Sender] WhatsApp not configured in settings');
+            if (!settingsData.zernio_account_id) {
+              console.error('[Sender] WhatsApp (Zernio) not configured in settings');
               throw new Error('WhatsApp not configured');
             }
 
@@ -211,6 +212,10 @@ serve(async (req) => {
 async function sendMessage(supabase: any, settings: any, queueItem: any) {
   console.log(`[Sender] Sending message: ${queueItem.id}`);
 
+  if (!ZERNIO_API_KEY) {
+    throw new Error('ZERNIO_API_KEY não configurada');
+  }
+
   // Get contact phone number
   const { data: contact } = await supabase
     .from('contacts')
@@ -222,70 +227,71 @@ async function sendMessage(supabase: any, settings: any, queueItem: any) {
     throw new Error('Contact not found');
   }
 
-  const recipient = contact.whatsapp_id || contact.phone_number;
+  const { data: conversation } = await supabase
+    .from('conversations')
+    .select('id, zernio_conversation_id')
+    .eq('id', queueItem.conversation_id)
+    .maybeSingle();
 
-  // Build WhatsApp API payload
-  let payload: any = {
-    messaging_product: 'whatsapp',
-    recipient_type: 'individual',
-    to: recipient
+  const attachmentType: string | undefined = queueItem.message_type === 'document'
+    ? 'file'
+    : (['image', 'audio', 'video'].includes(queueItem.message_type) ? queueItem.message_type : undefined);
+
+  const zernioHeaders = {
+    'Authorization': `Bearer ${ZERNIO_API_KEY}`,
+    'Content-Type': 'application/json',
   };
 
-  switch (queueItem.message_type) {
-    case 'text':
-      payload.type = 'text';
-      payload.text = { body: queueItem.content };
-      break;
-    
-    case 'image':
-      payload.type = 'image';
-      payload.image = { 
-        link: queueItem.media_url,
-        caption: queueItem.content || undefined
-      };
-      break;
-    
-    case 'audio':
-      payload.type = 'audio';
-      payload.audio = { link: queueItem.media_url };
-      break;
-    
-    case 'document':
-      payload.type = 'document';
-      payload.document = { 
-        link: queueItem.media_url,
-        filename: queueItem.content || 'document'
-      };
-      break;
-    
-    default:
-      payload.type = 'text';
-      payload.text = { body: queueItem.content };
-  }
+  let response: Response;
+  let zernioConversationId = conversation?.zernio_conversation_id as string | undefined;
 
-  console.log('[Sender] WhatsApp API payload:', JSON.stringify(payload, null, 2));
-
-  // Send via WhatsApp Cloud API
-  const response = await fetch(
-    `${WHATSAPP_API_URL}/${settings.whatsapp_phone_number_id}/messages`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.whatsapp_access_token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+  if (zernioConversationId) {
+    // Já existe uma conversa aberta na Zernio: manda direto nela.
+    const body: any = { accountId: settings.zernio_account_id };
+    if (queueItem.content) body.message = queueItem.content;
+    if (queueItem.media_url) {
+      body.attachmentUrl = queueItem.media_url;
+      body.attachmentType = attachmentType;
+      if (queueItem.message_type === 'document') body.attachmentName = queueItem.content || 'documento';
     }
-  );
+
+    response = await fetch(
+      `${ZERNIO_API}/inbox/conversations/${encodeURIComponent(zernioConversationId)}/messages`,
+      { method: 'POST', headers: zernioHeaders, body: JSON.stringify(body) },
+    );
+  } else {
+    // Sem conversa aberta ainda (ex.: Nina puxando um contato novo antes de qualquer
+    // mensagem recebida). Só funciona para texto elegível a Direct Send (utility).
+    const recipient = (contact.whatsapp_id || contact.phone_number || '').replace(/\D/g, '');
+    const body: any = {
+      accountId: settings.zernio_account_id,
+      participantId: recipient,
+      message: queueItem.content,
+      category: 'utility',
+    };
+
+    response = await fetch(`${ZERNIO_API}/inbox/conversations`, {
+      method: 'POST',
+      headers: zernioHeaders,
+      body: JSON.stringify(body),
+    });
+  }
 
   const responseData = await response.json();
 
   if (!response.ok) {
-    console.error('[Sender] WhatsApp API error:', responseData);
-    throw new Error(responseData.error?.message || 'WhatsApp API error');
+    console.error('[Sender] Zernio API error:', responseData);
+    throw new Error(responseData.error || 'Zernio API error');
   }
 
-  const whatsappMessageId = responseData.messages?.[0]?.id;
+  const whatsappMessageId = responseData?.data?.messageId;
+  if (!zernioConversationId && responseData?.data?.conversationId) {
+    zernioConversationId = responseData.data.conversationId;
+    await supabase
+      .from('conversations')
+      .update({ zernio_conversation_id: zernioConversationId })
+      .eq('id', queueItem.conversation_id);
+  }
   console.log('[Sender] Message sent, WA ID:', whatsappMessageId);
 
   // Update or create message record in database

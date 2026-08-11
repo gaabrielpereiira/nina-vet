@@ -275,7 +275,7 @@ serve(async (req) => {
           auto_response_enabled: effectiveSettings.auto_response_enabled,
           ai_model_mode: effectiveSettings.ai_model_mode,
           has_system_prompt: !!effectiveSettings.system_prompt_override,
-          has_whatsapp_config: !!effectiveSettings.whatsapp_phone_number_id,
+          has_whatsapp_config: !!effectiveSettings.zernio_account_id,
           has_elevenlabs: !!effectiveSettings.elevenlabs_api_key,
         });
         

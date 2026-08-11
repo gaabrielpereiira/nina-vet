@@ -1,5 +1,5 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
-import { Save, MessageSquare, Mic, Eye, EyeOff, Copy, Check, Loader2, Send, ChevronDown, Volume2, Download, Upload, FileAudio, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback } from 'react';
+import { Save, MessageSquare, Mic, Eye, EyeOff, Check, Loader2, Send, ChevronDown, Volume2, Download, Upload, FileAudio, HelpCircle } from 'lucide-react';
 import { Button } from '../Button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -9,9 +9,12 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface NinaSettings {
   id?: string;
-  whatsapp_access_token: string | null;
-  whatsapp_phone_number_id: string | null;
-  whatsapp_verify_token: string | null;
+  zernio_account_id: string | null;
+  zernio_display_phone_number: string | null;
+  zernio_display_name: string | null;
+  zernio_connected_at: string | null;
+  zernio_disconnected_at: string | null;
+  zernio_disconnect_reason: string | null;
   elevenlabs_api_key: string | null;
   elevenlabs_voice_id: string;
   elevenlabs_model: string | null;
@@ -64,10 +67,8 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showWhatsAppToken, setShowWhatsAppToken] = useState(false);
+  const [connectingWhatsapp, setConnectingWhatsapp] = useState(false);
   const [showElevenLabsKey, setShowElevenLabsKey] = useState(false);
-  const [copiedWebhook, setCopiedWebhook] = useState(false);
-  const [webhookOpen, setWebhookOpen] = useState(false);
   const [advancedVoiceOpen, setAdvancedVoiceOpen] = useState(false);
   const [testSectionOpen, setTestSectionOpen] = useState(false);
   const [testPhone, setTestPhone] = useState('');
@@ -96,14 +97,14 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     queued_for_nina: boolean;
   } | null>(null);
   const audioFileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Gera um verify token único para esta instalação
-  const generateUniqueToken = () => `verify-${crypto.randomUUID().slice(0, 8)}`;
-  
+
   const [settings, setSettings] = useState<NinaSettings>({
-    whatsapp_access_token: null,
-    whatsapp_phone_number_id: null,
-    whatsapp_verify_token: generateUniqueToken(),
+    zernio_account_id: null,
+    zernio_display_phone_number: null,
+    zernio_display_name: null,
+    zernio_connected_at: null,
+    zernio_disconnected_at: null,
+    zernio_disconnect_reason: null,
     elevenlabs_api_key: null,
     elevenlabs_voice_id: '33B4UnXyTNbgLmdEDh5P',
     elevenlabs_model: 'eleven_turbo_v2_5',
@@ -134,8 +135,6 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
       console.error('Error auto-saving ElevenLabs key:', error);
     }
   };
-
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
   useEffect(() => {
     setTestMessage(`Olá! Esta é uma mensagem de teste do sistema ${companyName}. 🚀`);
@@ -176,12 +175,14 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
       }
 
       // Load settings from global data
-      const uniqueToken = data.whatsapp_verify_token || generateUniqueToken();
       setSettings({
         id: data.id,
-        whatsapp_access_token: data.whatsapp_access_token,
-        whatsapp_phone_number_id: data.whatsapp_phone_number_id,
-        whatsapp_verify_token: uniqueToken,
+        zernio_account_id: data.zernio_account_id,
+        zernio_display_phone_number: data.zernio_display_phone_number,
+        zernio_display_name: data.zernio_display_name,
+        zernio_connected_at: data.zernio_connected_at,
+        zernio_disconnected_at: data.zernio_disconnected_at,
+        zernio_disconnect_reason: data.zernio_disconnect_reason,
         elevenlabs_api_key: data.elevenlabs_api_key,
         elevenlabs_voice_id: data.elevenlabs_voice_id,
         elevenlabs_model: data.elevenlabs_model,
@@ -203,18 +204,11 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (settings.whatsapp_phone_number_id && !/^\d+$/.test(settings.whatsapp_phone_number_id)) {
-        toast.error('Phone Number ID deve conter apenas números');
-        return;
-      }
-
       // Update global settings (no user_id filter - RLS handles admin check)
+      // A conexão do WhatsApp via Zernio é salva separadamente (zernio-save-connection / zernio-webhook).
       const { error } = await supabase
         .from('nina_settings')
         .update({
-          whatsapp_access_token: settings.whatsapp_access_token,
-          whatsapp_phone_number_id: settings.whatsapp_phone_number_id,
-          whatsapp_verify_token: settings.whatsapp_verify_token,
           elevenlabs_api_key: settings.elevenlabs_api_key,
           elevenlabs_voice_id: settings.elevenlabs_voice_id,
           elevenlabs_model: settings.elevenlabs_model,
@@ -239,12 +233,53 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     }
   };
 
-  const copyWebhookUrl = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    setCopiedWebhook(true);
-    toast.success('URL do webhook copiada!');
-    setTimeout(() => setCopiedWebhook(false), 2000);
-  };
+  const launchZernioConnect = useCallback(async () => {
+    setConnectingWhatsapp(true);
+    try {
+      const redirectUrl = `${window.location.origin}/whatsapp/callback`;
+      const { data, error } = await supabase.functions.invoke('zernio-connect', {
+        body: { redirect_url: redirectUrl },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.authUrl) throw new Error('Zernio não retornou a URL de conexão');
+
+      const popup = window.open(data.authUrl, 'zernio-connect-whatsapp', 'width=640,height=760');
+      if (!popup) {
+        window.location.href = data.authUrl;
+        return;
+      }
+
+      const poll = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(poll);
+          setConnectingWhatsapp(false);
+        }
+      }, 800);
+    } catch (error: any) {
+      console.error('[ApiSettings] Erro ao conectar WhatsApp via Zernio:', error);
+      toast.error(error?.message || 'Falha ao iniciar conexão com a Zernio');
+      setConnectingWhatsapp(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (data?.type === 'zernio-whatsapp-connected') {
+        setConnectingWhatsapp(false);
+        toast.success(`WhatsApp conectado: ${data.displayPhoneNumber || 'ativo'}`);
+        loadSettings();
+      } else if (data?.type === 'zernio-whatsapp-error') {
+        setConnectingWhatsapp(false);
+        toast.error(data.error || 'Falha ao conectar WhatsApp');
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleGenerateAudio = async () => {
     if (!settings.elevenlabs_api_key) {
@@ -307,9 +342,9 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
   };
 
   const handleTestMessage = async () => {
-    if (!settings.whatsapp_access_token || !settings.whatsapp_phone_number_id) {
-      toast.error('⚠️ Preencha e SALVE as credenciais do WhatsApp primeiro!', {
-        description: 'Clique em "Salvar Alterações" no topo da página antes de testar.'
+    if (!settings.zernio_account_id) {
+      toast.error('⚠️ Conecte o WhatsApp via Zernio primeiro!', {
+        description: 'Use o botão "Conectar com Zernio" acima antes de testar.'
       });
       return;
     }
@@ -447,7 +482,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     }
   };
 
-  const whatsappConfigured = settings.whatsapp_access_token && settings.whatsapp_phone_number_id;
+  const whatsappConfigured = Boolean(settings.zernio_account_id) && !settings.zernio_disconnected_at;
   const elevenlabsConfigured = settings.elevenlabs_api_key;
 
   if (loading) {
@@ -460,123 +495,89 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
 
   return (
     <div className="space-y-6">
-      {/* WhatsApp Cloud API + Webhook */}
+      {/* WhatsApp via Zernio (Coexistência) */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <MessageSquare className="w-5 h-5 text-cyan-400" />
-            <h3 className="font-semibold text-white">WhatsApp Cloud API</h3>
+            <h3 className="font-semibold text-white">WhatsApp (via Zernio)</h3>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
-            whatsappConfigured 
-              ? 'bg-emerald-500/10 text-emerald-400' 
-              : 'bg-amber-500/10 text-amber-400'
+            whatsappConfigured
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : settings.zernio_disconnected_at
+                ? 'bg-red-500/10 text-red-400'
+                : 'bg-amber-500/10 text-amber-400'
           }`}>
-            <span className={`h-2 w-2 rounded-full ${whatsappConfigured ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-            {whatsappConfigured ? 'Configurado' : 'Aguardando'}
+            <span className={`h-2 w-2 rounded-full ${whatsappConfigured ? 'bg-emerald-500' : settings.zernio_disconnected_at ? 'bg-red-500' : 'bg-amber-500'}`}></span>
+            {whatsappConfigured ? 'Conectado' : settings.zernio_disconnected_at ? 'Desconectado' : 'Aguardando'}
           </div>
         </div>
 
-        {/* Mini-guia de configuração */}
-        <details className="mb-4">
+        <p className="text-xs text-slate-400 mb-4">
+          Conexão em modo <strong className="text-slate-200">Coexistência</strong>: você continua usando o app do
+          WhatsApp Business no celular normalmente, e a Nina responde em paralelo pela Zernio.
+        </p>
+
+        {whatsappConfigured ? (
+          <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
+            <div>
+              <p className="text-sm font-medium text-emerald-100">{settings.zernio_display_phone_number}</p>
+              {settings.zernio_display_name && (
+                <p className="text-xs text-emerald-300/70">{settings.zernio_display_name}</p>
+              )}
+            </div>
+            <Button variant="ghost" size="sm" onClick={launchZernioConnect} disabled={connectingWhatsapp}>
+              {connectingWhatsapp ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Trocar número'}
+            </Button>
+          </div>
+        ) : (
+          <div className="mb-4 space-y-2">
+            {settings.zernio_disconnected_at && (
+              <p className="text-xs text-red-300/80">
+                Desconectado{settings.zernio_disconnect_reason ? `: ${settings.zernio_disconnect_reason}` : ''}. Conecte novamente abaixo.
+              </p>
+            )}
+            <Button
+              onClick={launchZernioConnect}
+              disabled={connectingWhatsapp}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white"
+            >
+              {connectingWhatsapp ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Aguardando conexão…
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Conectar com Zernio
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
+        <details>
           <summary className="text-xs text-cyan-400 cursor-pointer hover:text-cyan-300 flex items-center gap-2 py-2">
             <HelpCircle className="w-4 h-4" />
-            Como obter as credenciais do WhatsApp?
+            Como funciona a conexão?
           </summary>
-          <div className="mt-2 p-4 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-3">
-            <div className="space-y-2">
-              <p className="text-white font-medium">📋 Passo a passo:</p>
-              <ol className="list-decimal list-inside space-y-1.5 text-slate-400">
-                <li>Acesse o <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Meta for Developers</a></li>
-                <li>Crie ou selecione um App do tipo "Business"</li>
-                <li>Adicione o produto "WhatsApp" ao app</li>
-                <li>Na seção "API Setup", copie o <strong className="text-white">Access Token</strong> temporário (ou gere um permanente)</li>
-                <li>Copie também o <strong className="text-white">Phone Number ID</strong> (número de identificação)</li>
-                <li>Em "Configuration" → "Webhook", cole a URL e o Verify Token abaixo</li>
-              </ol>
-            </div>
-            <div className="pt-2 border-t border-slate-700">
-              <p className="text-slate-500">
-                📚 <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Documentação oficial do WhatsApp Cloud API</a>
-              </p>
-            </div>
+          <div className="mt-2 p-4 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-2 text-slate-400">
+            <p>
+              Ao clicar em "Conectar com Zernio", uma janela abre o Embedded Signup da Meta. Escolha
+              <strong className="text-white"> "Conectar app do WhatsApp Business existente"</strong> para
+              ativar a Coexistência (mantém o app do celular funcionando normalmente).
+            </p>
+            <p>
+              O webhook e as credenciais são gerenciados automaticamente pela Zernio — não é preciso
+              copiar nenhum token ou configurar nada no painel da Meta manualmente.
+            </p>
+            <p className="pt-2 border-t border-slate-700">
+              📚 <a href="https://docs.zernio.com/platforms/whatsapp/connection" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Documentação Zernio — Conexão do WhatsApp</a>
+            </p>
           </div>
         </details>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="text-xs font-medium text-slate-400 mb-1.5 block">
-              Access Token <span className="text-red-400">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showWhatsAppToken ? "text" : "password"}
-                value={settings.whatsapp_access_token || ''}
-                onChange={(e) => setSettings({ ...settings, whatsapp_access_token: e.target.value })}
-                placeholder="EAAxxxxxxxxxxxxxxx..."
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 pr-10 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowWhatsAppToken(!showWhatsAppToken)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-              >
-                {showWhatsAppToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-slate-400 mb-1.5 block">
-              Phone Number ID <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={settings.whatsapp_phone_number_id || ''}
-              onChange={(e) => setSettings({ ...settings, whatsapp_phone_number_id: e.target.value })}
-              placeholder="123456789012345"
-              className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-            />
-          </div>
-        </div>
-
-        {/* Webhook Collapsible */}
-        <Collapsible.Root open={webhookOpen} onOpenChange={setWebhookOpen}>
-          <Collapsible.Trigger className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300 transition-colors">
-            <ChevronDown className={`w-4 h-4 transition-transform ${webhookOpen ? 'rotate-180' : ''}`} />
-            Configuração de Webhook
-          </Collapsible.Trigger>
-          <Collapsible.Content className="mt-3 space-y-3">
-            <div>
-              <label className="text-xs font-medium text-slate-400 mb-1.5 block">Callback URL</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={webhookUrl}
-                  readOnly
-                  className="h-9 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-400 font-mono"
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={copyWebhookUrl}
-                  className="px-3"
-                >
-                  {copiedWebhook ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-400 mb-1.5 block">Verify Token</label>
-              <input
-                type="text"
-                value={settings.whatsapp_verify_token || ''}
-                onChange={(e) => setSettings({ ...settings, whatsapp_verify_token: e.target.value })}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-              />
-            </div>
-          </Collapsible.Content>
-        </Collapsible.Root>
       </div>
 
       {/* ElevenLabs */}

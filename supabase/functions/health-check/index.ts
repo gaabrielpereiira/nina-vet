@@ -107,34 +107,29 @@ Deno.serve(async (req) => {
         message: 'Configurações não encontradas. Execute o onboarding.',
       });
     } else {
-      // Check WhatsApp configuration
-      const whatsappConfigured = !!(
-        settings.whatsapp_access_token &&
-        settings.whatsapp_phone_number_id
-      );
+      // Check WhatsApp configuration (via Zernio)
+      const whatsappConfigured = !!settings.zernio_account_id && !settings.zernio_disconnected_at;
 
       if (whatsappConfigured) {
         results.push({
           component: 'whatsapp',
           status: 'ok',
-          message: 'WhatsApp está configurado',
+          message: 'WhatsApp está conectado via Zernio',
           details: {
-            hasAccessToken: !!settings.whatsapp_access_token,
-            hasPhoneNumberId: !!settings.whatsapp_phone_number_id,
-            hasBusinessAccountId: !!settings.whatsapp_business_account_id,
-            hasVerifyToken: !!settings.whatsapp_verify_token,
+            hasZernioAccount: !!settings.zernio_account_id,
+            displayPhoneNumber: settings.zernio_display_phone_number,
           },
         });
       } else {
         results.push({
           component: 'whatsapp',
           status: 'warning',
-          message: 'WhatsApp não está totalmente configurado',
+          message: settings.zernio_disconnected_at
+            ? 'WhatsApp foi desconectado. Conecte novamente via Zernio.'
+            : 'WhatsApp ainda não foi conectado via Zernio',
           details: {
-            hasAccessToken: !!settings.whatsapp_access_token,
-            hasPhoneNumberId: !!settings.whatsapp_phone_number_id,
-            hasBusinessAccountId: !!settings.whatsapp_business_account_id,
-            hasVerifyToken: !!settings.whatsapp_verify_token,
+            hasZernioAccount: !!settings.zernio_account_id,
+            disconnectedAt: settings.zernio_disconnected_at,
           },
         });
       }

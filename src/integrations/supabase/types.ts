@@ -230,6 +230,7 @@ export type Database = {
           tags: string[] | null
           updated_at: string
           user_id: string | null
+          zernio_conversation_id: string | null
         }
         Insert: {
           ai_paused?: boolean
@@ -250,6 +251,7 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           user_id?: string | null
+          zernio_conversation_id?: string | null
         }
         Update: {
           ai_paused?: boolean
@@ -270,6 +272,7 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           user_id?: string | null
+          zernio_conversation_id?: string | null
         }
         Relationships: [
           {
@@ -687,6 +690,13 @@ export type Database = {
           whatsapp_business_account_id: string | null
           whatsapp_phone_number_id: string | null
           whatsapp_verify_token: string | null
+          zernio_account_id: string | null
+          zernio_connected_at: string | null
+          zernio_disconnect_reason: string | null
+          zernio_disconnected_at: string | null
+          zernio_display_name: string | null
+          zernio_display_phone_number: string | null
+          zernio_profile_id: string | null
         }
         Insert: {
           adaptive_response_enabled?: boolean
@@ -725,6 +735,13 @@ export type Database = {
           whatsapp_business_account_id?: string | null
           whatsapp_phone_number_id?: string | null
           whatsapp_verify_token?: string | null
+          zernio_account_id?: string | null
+          zernio_connected_at?: string | null
+          zernio_disconnect_reason?: string | null
+          zernio_disconnected_at?: string | null
+          zernio_display_name?: string | null
+          zernio_display_phone_number?: string | null
+          zernio_profile_id?: string | null
         }
         Update: {
           adaptive_response_enabled?: boolean
@@ -763,6 +780,13 @@ export type Database = {
           whatsapp_business_account_id?: string | null
           whatsapp_phone_number_id?: string | null
           whatsapp_verify_token?: string | null
+          zernio_account_id?: string | null
+          zernio_connected_at?: string | null
+          zernio_disconnect_reason?: string | null
+          zernio_disconnected_at?: string | null
+          zernio_display_name?: string | null
+          zernio_display_phone_number?: string | null
+          zernio_profile_id?: string | null
         }
         Relationships: []
       }

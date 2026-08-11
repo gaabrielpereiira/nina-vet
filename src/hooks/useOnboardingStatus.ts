@@ -120,7 +120,7 @@ export function useOnboardingStatus(): OnboardingStatus {
             case 'whatsapp':
               return {
                 ...step,
-                isComplete: !!(settings.whatsapp_access_token && settings.whatsapp_phone_number_id && (settings as any).whatsapp_business_account_id),
+                isComplete: !!(settings as any).zernio_account_id,
               };
             case 'agent':
               return {
@@ -145,7 +145,7 @@ export function useOnboardingStatus(): OnboardingStatus {
             case 'verification':
               return {
                 ...step,
-                isComplete: !!(settings.company_name && settings.sdr_name && settings.whatsapp_access_token && settings.system_prompt_override),
+                isComplete: !!(settings.company_name && settings.sdr_name && (settings as any).zernio_account_id && settings.system_prompt_override),
               };
             case 'finish':
               return {

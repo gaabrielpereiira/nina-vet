@@ -103,30 +103,36 @@ serve(async (req) => {
         });
       }
 
-      // Check WhatsApp
-      if (settings.whatsapp_access_token && settings.whatsapp_phone_number_id) {
-        // Test WhatsApp API connection
+      // Check WhatsApp (via Zernio)
+      if (settings.zernio_account_id && !settings.zernio_disconnected_at) {
+        const zernioApiKey = Deno.env.get('ZERNIO_API_KEY');
         try {
-          const waResponse = await fetch(
-            `https://graph.facebook.com/v18.0/${settings.whatsapp_phone_number_id}`,
-            {
-              headers: { Authorization: `Bearer ${settings.whatsapp_access_token}` },
-            }
-          );
-          
-          if (waResponse.ok) {
+          const waResponse = zernioApiKey
+            ? await fetch(`https://zernio.com/api/v1/accounts/${settings.zernio_account_id}`, {
+                headers: { Authorization: `Bearer ${zernioApiKey}` },
+              })
+            : null;
+
+          if (waResponse?.ok) {
             const waData = await waResponse.json();
+            const account = waData?.account || waData;
             results.push({
               component: 'whatsapp',
               status: 'ok',
-              message: `WhatsApp conectado: ${waData.display_phone_number || 'Ativo'}`,
+              message: `WhatsApp conectado: ${account?.username || settings.zernio_display_phone_number || 'Ativo'}`,
+            });
+          } else if (!zernioApiKey) {
+            results.push({
+              component: 'whatsapp',
+              status: 'ok',
+              message: `WhatsApp conectado: ${settings.zernio_display_phone_number || 'Ativo'} (não foi possível revalidar: ZERNIO_API_KEY ausente)`,
             });
           } else {
             results.push({
               component: 'whatsapp',
               status: 'error',
-              message: 'Token do WhatsApp inválido ou expirado',
-              details: 'Verifique as credenciais no Facebook Developer',
+              message: 'Conta WhatsApp inválida ou desconectada na Zernio',
+              details: 'Reconecte via Configurações',
             });
           }
         } catch (e) {
@@ -134,15 +140,15 @@ serve(async (req) => {
             component: 'whatsapp',
             status: 'warning',
             message: 'Não foi possível validar WhatsApp',
-            details: 'Erro de conexão com a API',
+            details: 'Erro de conexão com a API da Zernio',
           });
         }
       } else {
         results.push({
           component: 'whatsapp',
           status: 'error',
-          message: 'WhatsApp não configurado',
-          details: 'Configure o token e Phone Number ID',
+          message: settings.zernio_disconnected_at ? 'WhatsApp desconectado' : 'WhatsApp não conectado',
+          details: 'Conecte o WhatsApp via Zernio em Configurações',
         });
       }
 
