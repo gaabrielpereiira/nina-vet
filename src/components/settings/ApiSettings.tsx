@@ -1,5 +1,5 @@
 import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef, useCallback } from 'react';
-import { Save, MessageSquare, Mic, Eye, EyeOff, Check, Loader2, Send, ChevronDown, Volume2, Download, Upload, FileAudio, HelpCircle } from 'lucide-react';
+import { Save, MessageSquare, Mic, Eye, EyeOff, Check, Loader2, Send, ChevronDown, Volume2, Download, Upload, FileAudio, HelpCircle, Stethoscope } from 'lucide-react';
 import { Button } from '../Button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -15,6 +15,12 @@ interface NinaSettings {
   zernio_connected_at: string | null;
   zernio_disconnected_at: string | null;
   zernio_disconnect_reason: string | null;
+  vetsoft_connected_at: string | null;
+  vetsoft_last_error: string | null;
+  vetsoft_default_service_type_id: number | null;
+  vetsoft_default_service_type_name: string | null;
+  vetsoft_default_user_id: number | null;
+  vetsoft_default_user_name: string | null;
   elevenlabs_api_key: string | null;
   elevenlabs_voice_id: string;
   elevenlabs_model: string | null;
@@ -68,6 +74,9 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectingWhatsapp, setConnectingWhatsapp] = useState(false);
+  const [vetsoftTesting, setVetsoftTesting] = useState(false);
+  const [vetsoftServiceTypes, setVetsoftServiceTypes] = useState<{ id: number; name: string }[]>([]);
+  const [vetsoftTenantUsers, setVetsoftTenantUsers] = useState<{ id: number; name: string }[]>([]);
   const [showElevenLabsKey, setShowElevenLabsKey] = useState(false);
   const [advancedVoiceOpen, setAdvancedVoiceOpen] = useState(false);
   const [testSectionOpen, setTestSectionOpen] = useState(false);
@@ -105,6 +114,12 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     zernio_connected_at: null,
     zernio_disconnected_at: null,
     zernio_disconnect_reason: null,
+    vetsoft_connected_at: null,
+    vetsoft_last_error: null,
+    vetsoft_default_service_type_id: null,
+    vetsoft_default_service_type_name: null,
+    vetsoft_default_user_id: null,
+    vetsoft_default_user_name: null,
     elevenlabs_api_key: null,
     elevenlabs_voice_id: '33B4UnXyTNbgLmdEDh5P',
     elevenlabs_model: 'eleven_turbo_v2_5',
@@ -183,6 +198,12 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
         zernio_connected_at: data.zernio_connected_at,
         zernio_disconnected_at: data.zernio_disconnected_at,
         zernio_disconnect_reason: data.zernio_disconnect_reason,
+        vetsoft_connected_at: data.vetsoft_connected_at,
+        vetsoft_last_error: data.vetsoft_last_error,
+        vetsoft_default_service_type_id: data.vetsoft_default_service_type_id,
+        vetsoft_default_service_type_name: data.vetsoft_default_service_type_name,
+        vetsoft_default_user_id: data.vetsoft_default_user_id,
+        vetsoft_default_user_name: data.vetsoft_default_user_name,
         elevenlabs_api_key: data.elevenlabs_api_key,
         elevenlabs_voice_id: data.elevenlabs_voice_id,
         elevenlabs_model: data.elevenlabs_model,
@@ -280,6 +301,55 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     return () => window.removeEventListener('message', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const testVetsoftConnection = useCallback(async () => {
+    setVetsoftTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('vetsoft-connect', { body: {} });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setVetsoftServiceTypes(data?.serviceTypes || []);
+      setVetsoftTenantUsers(data?.tenantUsers || []);
+      toast.success('Conectado ao VetSoft!');
+      await loadSettings();
+    } catch (error: any) {
+      console.error('[ApiSettings] Erro ao conectar com o VetSoft:', error);
+      toast.error(error?.message || 'Falha ao conectar com o VetSoft');
+    } finally {
+      setVetsoftTesting(false);
+    }
+  }, []);
+
+  const saveVetsoftServiceType = async (id: string) => {
+    const option = vetsoftServiceTypes.find((o) => String(o.id) === id);
+    if (!option) return;
+    setSettings((prev) => ({ ...prev, vetsoft_default_service_type_id: option.id, vetsoft_default_service_type_name: option.name }));
+    try {
+      const { error } = await supabase.functions.invoke('vetsoft-save-defaults', {
+        body: { service_type_id: option.id, service_type_name: option.name },
+      });
+      if (error) throw error;
+      toast.success('Tipo de atendimento padrão salvo');
+    } catch (error: any) {
+      toast.error(error?.message || 'Falha ao salvar tipo de atendimento');
+    }
+  };
+
+  const saveVetsoftUser = async (id: string) => {
+    const option = vetsoftTenantUsers.find((o) => String(o.id) === id);
+    if (!option) return;
+    setSettings((prev) => ({ ...prev, vetsoft_default_user_id: option.id, vetsoft_default_user_name: option.name }));
+    try {
+      const { error } = await supabase.functions.invoke('vetsoft-save-defaults', {
+        body: { user_id: option.id, user_name: option.name },
+      });
+      if (error) throw error;
+      toast.success('Usuário responsável padrão salvo');
+    } catch (error: any) {
+      toast.error(error?.message || 'Falha ao salvar usuário responsável');
+    }
+  };
 
   const handleGenerateAudio = async () => {
     if (!settings.elevenlabs_api_key) {
@@ -575,6 +645,99 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
             </p>
             <p className="pt-2 border-t border-slate-700">
               📚 <a href="https://docs.zernio.com/platforms/whatsapp/connection" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Documentação Zernio — Conexão do WhatsApp</a>
+            </p>
+          </div>
+        </details>
+      </div>
+
+      {/* VetSoft */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Stethoscope className="w-5 h-5 text-cyan-400" />
+            <h3 className="font-semibold text-white">VetSoft (agenda e clientes da clínica)</h3>
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
+            settings.vetsoft_connected_at && !settings.vetsoft_last_error
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : settings.vetsoft_last_error
+                ? 'bg-red-500/10 text-red-400'
+                : 'bg-amber-500/10 text-amber-400'
+          }`}>
+            <span className={`h-2 w-2 rounded-full ${settings.vetsoft_connected_at && !settings.vetsoft_last_error ? 'bg-emerald-500' : settings.vetsoft_last_error ? 'bg-red-500' : 'bg-amber-500'}`}></span>
+            {settings.vetsoft_connected_at && !settings.vetsoft_last_error ? 'Conectado' : settings.vetsoft_last_error ? 'Erro' : 'Aguardando'}
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-400 mb-4">
+          Quando conectado, a Nina cria/reagenda/cancela as consultas direto na agenda real do
+          VetSoft e sincroniza os clientes e animais automaticamente.
+        </p>
+
+        {settings.vetsoft_last_error && (
+          <p className="text-xs text-red-300/80 mb-3">{settings.vetsoft_last_error}</p>
+        )}
+
+        <Button onClick={testVetsoftConnection} disabled={vetsoftTesting} className="mb-4">
+          {vetsoftTesting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Testando…
+            </>
+          ) : (
+            'Testar conexão'
+          )}
+        </Button>
+
+        {settings.vetsoft_connected_at && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-xs font-medium text-slate-400 mb-1.5 block">Tipo de atendimento padrão</label>
+              <select
+                value={settings.vetsoft_default_service_type_id ?? ''}
+                onChange={(e) => saveVetsoftServiceType(e.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              >
+                <option value="" disabled>
+                  {vetsoftServiceTypes.length ? 'Selecione...' : settings.vetsoft_default_service_type_name || 'Testar conexão pra carregar'}
+                </option>
+                {vetsoftServiceTypes.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-400 mb-1.5 block">Usuário responsável padrão</label>
+              <select
+                value={settings.vetsoft_default_user_id ?? ''}
+                onChange={(e) => saveVetsoftUser(e.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              >
+                <option value="" disabled>
+                  {vetsoftTenantUsers.length ? 'Selecione...' : settings.vetsoft_default_user_name || 'Testar conexão pra carregar'}
+                </option>
+                {vetsoftTenantUsers.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        <details>
+          <summary className="text-xs text-cyan-400 cursor-pointer hover:text-cyan-300 flex items-center gap-2 py-2">
+            <HelpCircle className="w-4 h-4" />
+            Como conectar?
+          </summary>
+          <div className="mt-2 p-4 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-2 text-slate-400">
+            <p>
+              Solicite acesso à API em <strong className="text-white">suporte@vetsoft.com.br</strong> e
+              configure 3 secrets no Supabase (Edge Functions → Secrets): <code className="text-cyan-400">VETSOFT_TENANT</code>,{' '}
+              <code className="text-cyan-400">VETSOFT_EMAIL</code> e <code className="text-cyan-400">VETSOFT_PASSWORD</code>.
+              Depois clique em "Testar conexão" aqui.
+            </p>
+            <p className="pt-2 border-t border-slate-700">
+              📚 <a href="https://vetsoft.readme.io/reference/bem-vindo" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Documentação da API VetSoft</a>
             </p>
           </div>
         </details>

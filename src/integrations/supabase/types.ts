@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       appointments: {
         Row: {
+          animal_id: string | null
           attendees: string[] | null
           contact_id: string | null
           created_at: string
@@ -33,8 +34,12 @@ export type Database = {
           type: Database["public"]["Enums"]["appointment_type"]
           updated_at: string
           user_id: string | null
+          vetsoft_event_id: number | null
+          vetsoft_sync_error: string | null
+          vetsoft_synced_at: string | null
         }
         Insert: {
+          animal_id?: string | null
           attendees?: string[] | null
           contact_id?: string | null
           created_at?: string
@@ -52,8 +57,12 @@ export type Database = {
           type?: Database["public"]["Enums"]["appointment_type"]
           updated_at?: string
           user_id?: string | null
+          vetsoft_event_id?: number | null
+          vetsoft_sync_error?: string | null
+          vetsoft_synced_at?: string | null
         }
         Update: {
+          animal_id?: string | null
           attendees?: string[] | null
           contact_id?: string | null
           created_at?: string
@@ -71,8 +80,18 @@ export type Database = {
           type?: Database["public"]["Enums"]["appointment_type"]
           updated_at?: string
           user_id?: string | null
+          vetsoft_event_id?: number | null
+          vetsoft_sync_error?: string | null
+          vetsoft_synced_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_animal_id_fkey"
+            columns: ["animal_id"]
+            isOneToOne: false
+            referencedRelation: "animals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_contact_id_fkey"
             columns: ["contact_id"]
@@ -103,6 +122,69 @@ export type Database = {
           },
         ]
       }
+      animals: {
+        Row: {
+          breed: string | null
+          contact_id: string
+          created_at: string
+          birth_date: string | null
+          id: string
+          name: string
+          notes: string | null
+          sex: string | null
+          species: string | null
+          updated_at: string
+          vetsoft_animal_id: number | null
+          vetsoft_sync_error: string | null
+          vetsoft_synced_at: string | null
+        }
+        Insert: {
+          breed?: string | null
+          contact_id: string
+          created_at?: string
+          birth_date?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          sex?: string | null
+          species?: string | null
+          updated_at?: string
+          vetsoft_animal_id?: number | null
+          vetsoft_sync_error?: string | null
+          vetsoft_synced_at?: string | null
+        }
+        Update: {
+          breed?: string | null
+          contact_id?: string
+          created_at?: string
+          birth_date?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          sex?: string | null
+          species?: string | null
+          updated_at?: string
+          vetsoft_animal_id?: number | null
+          vetsoft_sync_error?: string | null
+          vetsoft_synced_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "animals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "animals_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts_with_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           blocked_at: string | null
@@ -123,6 +205,9 @@ export type Database = {
           tags: string[] | null
           updated_at: string
           user_id: string | null
+          vetsoft_client_id: number | null
+          vetsoft_sync_error: string | null
+          vetsoft_synced_at: string | null
           whatsapp_id: string | null
         }
         Insert: {
@@ -144,6 +229,9 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           user_id?: string | null
+          vetsoft_client_id?: number | null
+          vetsoft_sync_error?: string | null
+          vetsoft_synced_at?: string | null
           whatsapp_id?: string | null
         }
         Update: {
@@ -165,6 +253,9 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           user_id?: string | null
+          vetsoft_client_id?: number | null
+          vetsoft_sync_error?: string | null
+          vetsoft_synced_at?: string | null
           whatsapp_id?: string | null
         }
         Relationships: []
@@ -686,6 +777,15 @@ export type Database = {
           timezone: string
           updated_at: string
           user_id: string | null
+          vetsoft_access_token: string | null
+          vetsoft_connected_at: string | null
+          vetsoft_default_service_type_id: number | null
+          vetsoft_default_service_type_name: string | null
+          vetsoft_default_user_id: number | null
+          vetsoft_default_user_name: string | null
+          vetsoft_last_error: string | null
+          vetsoft_refresh_token: string | null
+          vetsoft_token_expires_at: string | null
           whatsapp_access_token: string | null
           whatsapp_business_account_id: string | null
           whatsapp_phone_number_id: string | null
@@ -731,6 +831,15 @@ export type Database = {
           timezone?: string
           updated_at?: string
           user_id?: string | null
+          vetsoft_access_token?: string | null
+          vetsoft_connected_at?: string | null
+          vetsoft_default_service_type_id?: number | null
+          vetsoft_default_service_type_name?: string | null
+          vetsoft_default_user_id?: number | null
+          vetsoft_default_user_name?: string | null
+          vetsoft_last_error?: string | null
+          vetsoft_refresh_token?: string | null
+          vetsoft_token_expires_at?: string | null
           whatsapp_access_token?: string | null
           whatsapp_business_account_id?: string | null
           whatsapp_phone_number_id?: string | null
@@ -776,6 +885,15 @@ export type Database = {
           timezone?: string
           updated_at?: string
           user_id?: string | null
+          vetsoft_access_token?: string | null
+          vetsoft_connected_at?: string | null
+          vetsoft_default_service_type_id?: number | null
+          vetsoft_default_service_type_name?: string | null
+          vetsoft_default_user_id?: number | null
+          vetsoft_default_user_name?: string | null
+          vetsoft_last_error?: string | null
+          vetsoft_refresh_token?: string | null
+          vetsoft_token_expires_at?: string | null
           whatsapp_access_token?: string | null
           whatsapp_business_account_id?: string | null
           whatsapp_phone_number_id?: string | null

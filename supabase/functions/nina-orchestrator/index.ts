@@ -1,5 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  findClientByPhone,
+  createClient as createVetsoftClient,
+  addClientContact,
+  findBreedByName,
+  createAnimal,
+  createAgendaEvent,
+  updateAgendaEvent,
+  cancelAgendaEvent,
+} from "../_shared/vetsoft.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -39,9 +49,13 @@ const createAppointmentTool = {
           enum: ["demo", "meeting", "support", "followup"],
           description: "Tipo do agendamento: demo (demonstração), meeting (reunião geral), support (suporte técnico), followup (acompanhamento)" 
         },
-        description: { 
-          type: "string", 
-          description: "Descrição ou pauta da reunião. Resuma o que será discutido." 
+        description: {
+          type: "string",
+          description: "Descrição ou pauta da reunião. Resuma o que será discutido."
+        },
+        pet_name: {
+          type: "string",
+          description: "Nome do pet/animal, se o tutor mencionar. Usado para vincular a consulta ao animal certo no sistema da clínica."
         }
       },
       required: ["title", "date", "time", "type"]
@@ -427,6 +441,7 @@ async function createAppointmentFromAI(
     duration?: number;
     type: 'demo' | 'meeting' | 'support' | 'followup';
     description?: string;
+    pet_name?: string;
   }
 ): Promise<any> {
   console.log('[Nina] Creating appointment from AI:', args, 'for user:', userId);
@@ -505,6 +520,10 @@ async function createAppointmentFromAI(
   }
 
   console.log('[Nina] Appointment created successfully:', data.id);
+
+  // Best-effort: nunca deve impedir a Nina de responder no WhatsApp se o VetSoft falhar.
+  await syncAppointmentToVetsoft(supabase, contactId, data, args.pet_name);
+
   return data;
 }
 
@@ -608,6 +627,9 @@ async function rescheduleAppointmentFromAI(
   }
   
   console.log('[Nina] Appointment rescheduled successfully:', data.id);
+
+  await syncAppointmentRescheduleToVetsoft(supabase, data);
+
   return { ...data, previous_date: appointment.date, previous_time: appointment.time };
 }
 
@@ -667,7 +689,221 @@ async function cancelAppointmentFromAI(
   }
   
   console.log('[Nina] Appointment cancelled successfully:', data.id);
+
+  await syncAppointmentCancelToVetsoft(supabase, data, args.reason);
+
   return data;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sincronização com o VetSoft (agenda real da clínica). Sempre best-effort:
+// nenhuma dessas funções lança erro pra fora — uma falha aqui nunca deve
+// impedir a Nina de responder no WhatsApp, só fica registrada em
+// vetsoft_sync_error pra revisão manual depois.
+// ─────────────────────────────────────────────────────────────────────────
+
+async function ensureVetsoftClient(supabase: any, contactId: string): Promise<number | null> {
+  const { data: contact } = await supabase
+    .from('contacts')
+    .select('id, name, phone_number, vetsoft_client_id')
+    .eq('id', contactId)
+    .maybeSingle();
+  if (!contact) return null;
+  if (contact.vetsoft_client_id) return contact.vetsoft_client_id;
+
+  try {
+    // Deduplicação: a API do VetSoft normaliza o telefone na busca por ?contato=.
+    let vetsoftClient = await findClientByPhone(supabase, contact.phone_number);
+    if (!vetsoftClient) {
+      vetsoftClient = await createVetsoftClient(supabase, { nom_cliente: contact.name || contact.phone_number });
+      await addClientContact(supabase, vetsoftClient.cod_cliente, contact.phone_number);
+    }
+    await supabase
+      .from('contacts')
+      .update({
+        vetsoft_client_id: vetsoftClient.cod_cliente,
+        vetsoft_synced_at: new Date().toISOString(),
+        vetsoft_sync_error: null,
+      })
+      .eq('id', contactId);
+    return vetsoftClient.cod_cliente;
+  } catch (e) {
+    console.error('[Nina][VetSoft] Falha ao sincronizar cliente:', e);
+    await supabase
+      .from('contacts')
+      .update({ vetsoft_sync_error: e instanceof Error ? e.message : String(e) })
+      .eq('id', contactId);
+    return null;
+  }
+}
+
+async function ensureVetsoftAnimal(
+  supabase: any,
+  contactId: string,
+  petName: string | undefined,
+): Promise<{ animalId: string | null; codAnimal: number | null }> {
+  if (!petName?.trim()) return { animalId: null, codAnimal: null };
+
+  let { data: animal } = await supabase
+    .from('animals')
+    .select('*')
+    .eq('contact_id', contactId)
+    .ilike('name', petName.trim())
+    .maybeSingle();
+
+  if (!animal) {
+    const { data: newAnimal, error } = await supabase
+      .from('animals')
+      .insert({ contact_id: contactId, name: petName.trim() })
+      .select()
+      .single();
+    if (error) {
+      console.error('[Nina][VetSoft] Falha ao criar animal local:', error);
+      return { animalId: null, codAnimal: null };
+    }
+    animal = newAnimal;
+  }
+
+  if (animal.vetsoft_animal_id) {
+    return { animalId: animal.id, codAnimal: animal.vetsoft_animal_id };
+  }
+
+  try {
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('vetsoft_client_id')
+      .eq('id', contactId)
+      .maybeSingle();
+    if (!contact?.vetsoft_client_id) return { animalId: animal.id, codAnimal: null };
+
+    // cod_raca é obrigatório pra criar animal no VetSoft. Sem raça reconhecida (nome livre da
+    // conversa não bateu com nenhuma raça cadastrada), a consulta segue vinculada só ao
+    // cliente — o nome do pet vai na descrição do evento pra equipe completar manualmente.
+    const breed = await findBreedByName(supabase, animal.breed || petName);
+    if (!breed) {
+      console.log('[Nina][VetSoft] Raça não encontrada para', petName, '- animal não sincronizado ainda');
+      return { animalId: animal.id, codAnimal: null };
+    }
+
+    const vetsoftAnimal = await createAnimal(supabase, {
+      cod_cliente: contact.vetsoft_client_id,
+      nom_animal: animal.name,
+      cod_raca: breed.cod_raca,
+    });
+
+    await supabase
+      .from('animals')
+      .update({
+        vetsoft_animal_id: vetsoftAnimal.cod_animal,
+        breed: breed.nom_raca,
+        vetsoft_synced_at: new Date().toISOString(),
+        vetsoft_sync_error: null,
+      })
+      .eq('id', animal.id);
+
+    return { animalId: animal.id, codAnimal: vetsoftAnimal.cod_animal };
+  } catch (e) {
+    console.error('[Nina][VetSoft] Falha ao sincronizar animal:', e);
+    await supabase
+      .from('animals')
+      .update({ vetsoft_sync_error: e instanceof Error ? e.message : String(e) })
+      .eq('id', animal.id);
+    return { animalId: animal.id, codAnimal: null };
+  }
+}
+
+async function getVetsoftDefaults(supabase: any): Promise<{ serviceTypeId: number | null; userId: number | null }> {
+  const { data } = await supabase
+    .from('nina_settings')
+    .select('vetsoft_default_service_type_id, vetsoft_default_user_id')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return {
+    serviceTypeId: data?.vetsoft_default_service_type_id ?? null,
+    userId: data?.vetsoft_default_user_id ?? null,
+  };
+}
+
+async function syncAppointmentToVetsoft(supabase: any, contactId: string, appointment: any, petName?: string) {
+  try {
+    const codCliente = await ensureVetsoftClient(supabase, contactId);
+    if (!codCliente) return;
+
+    const { animalId, codAnimal } = await ensureVetsoftAnimal(supabase, contactId, petName);
+    const { serviceTypeId, userId } = await getVetsoftDefaults(supabase);
+
+    const startAt = new Date(`${appointment.date}T${appointment.time}:00`);
+    const endAt = new Date(startAt.getTime() + (appointment.duration || 60) * 60000);
+    const desEvento = petName && !codAnimal ? `${appointment.title} (pet: ${petName})` : appointment.title;
+
+    const vetsoftEvent = await createAgendaEvent(supabase, {
+      cod_cliente: codCliente,
+      cod_animal: codAnimal || undefined,
+      dat_evento: startAt.toISOString(),
+      dat_termino: endAt.toISOString(),
+      des_evento: desEvento,
+      cod_tipo_atentimento: serviceTypeId || undefined,
+      cod_usuario_responsavel: userId || undefined,
+    });
+
+    await supabase
+      .from('appointments')
+      .update({
+        animal_id: animalId,
+        vetsoft_event_id: vetsoftEvent.cod_evento,
+        vetsoft_synced_at: new Date().toISOString(),
+        vetsoft_sync_error: null,
+      })
+      .eq('id', appointment.id);
+
+    console.log('[Nina][VetSoft] Evento de agenda criado:', vetsoftEvent.cod_evento);
+  } catch (e) {
+    console.error('[Nina][VetSoft] Falha ao sincronizar agendamento:', e);
+    await supabase
+      .from('appointments')
+      .update({ vetsoft_sync_error: e instanceof Error ? e.message : String(e) })
+      .eq('id', appointment.id);
+  }
+}
+
+async function syncAppointmentRescheduleToVetsoft(supabase: any, appointment: any) {
+  if (!appointment.vetsoft_event_id) return;
+  try {
+    const startAt = new Date(`${appointment.date}T${appointment.time}:00`);
+    const endAt = new Date(startAt.getTime() + (appointment.duration || 60) * 60000);
+    await updateAgendaEvent(supabase, appointment.vetsoft_event_id, {
+      dat_evento: startAt.toISOString(),
+      dat_termino: endAt.toISOString(),
+    });
+    await supabase
+      .from('appointments')
+      .update({ vetsoft_synced_at: new Date().toISOString(), vetsoft_sync_error: null })
+      .eq('id', appointment.id);
+  } catch (e) {
+    console.error('[Nina][VetSoft] Falha ao reagendar no VetSoft:', e);
+    await supabase
+      .from('appointments')
+      .update({ vetsoft_sync_error: e instanceof Error ? e.message : String(e) })
+      .eq('id', appointment.id);
+  }
+}
+
+async function syncAppointmentCancelToVetsoft(supabase: any, appointment: any, reason?: string) {
+  if (!appointment.vetsoft_event_id) return;
+  try {
+    await cancelAgendaEvent(supabase, appointment.vetsoft_event_id, reason || 'Cancelado pelo tutor via WhatsApp');
+    await supabase
+      .from('appointments')
+      .update({ vetsoft_synced_at: new Date().toISOString(), vetsoft_sync_error: null })
+      .eq('id', appointment.id);
+  } catch (e) {
+    console.error('[Nina][VetSoft] Falha ao cancelar no VetSoft:', e);
+    await supabase
+      .from('appointments')
+      .update({ vetsoft_sync_error: e instanceof Error ? e.message : String(e) })
+      .eq('id', appointment.id);
+  }
 }
 
 async function processQueueItem(
@@ -1159,7 +1395,7 @@ Lead qualificado se demonstrar: ser empresário/gestor/decisor, interesse genuí
 <tool_usage_protocol>
 Agendamentos:
 - Você pode criar, reagendar e cancelar agendamentos usando as ferramentas disponíveis (create_appointment, reschedule_appointment, cancel_appointment).
-- Antes de agendar, confirme: nome completo, data/horário desejado.
+- Antes de agendar, confirme: nome completo, nome do pet (informe no parâmetro pet_name se souber), data/horário desejado.
 - Valide se a data não é no passado e se não há conflito de horário.
 - Após agendar, confirme os detalhes com o lead.
 
