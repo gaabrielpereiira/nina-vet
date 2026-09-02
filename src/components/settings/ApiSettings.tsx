@@ -343,7 +343,18 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     setVetsoftTesting(true);
     try {
       const { data, error } = await supabase.functions.invoke('vetsoft-connect', { body: {} });
-      if (error) throw error;
+      if (error) {
+        // supabase-js devolve data=null em non-2xx; a mensagem real do VetSoft está no body.
+        let details = error.message;
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx?.text) {
+            const raw = await ctx.text();
+            details = JSON.parse(raw)?.error || raw || details;
+          }
+        } catch { /* mantém error.message */ }
+        throw new Error(details);
+      }
       if (data?.error) throw new Error(data.error);
 
       setVetsoftServiceTypes(data?.serviceTypes || []);
@@ -353,10 +364,12 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     } catch (error: any) {
       console.error('[ApiSettings] Erro ao conectar com o VetSoft:', error);
       toast.error(error?.message || 'Falha ao conectar com o VetSoft');
+      await loadSettings();
     } finally {
       setVetsoftTesting(false);
     }
   }, []);
+
 
   const saveVetsoftServiceType = async (id: string) => {
     const option = vetsoftServiceTypes.find((o) => String(o.id) === id);
