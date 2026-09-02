@@ -17,6 +17,9 @@ interface NinaSettings {
   zernio_disconnect_reason: string | null;
   vetsoft_connected_at: string | null;
   vetsoft_last_error: string | null;
+  vetsoft_login_tenant: string | null;
+  vetsoft_login_email: string | null;
+  vetsoft_login_password: string | null;
   vetsoft_default_service_type_id: number | null;
   vetsoft_default_service_type_name: string | null;
   vetsoft_default_user_id: number | null;
@@ -75,6 +78,8 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
   const [saving, setSaving] = useState(false);
   const [connectingWhatsapp, setConnectingWhatsapp] = useState(false);
   const [vetsoftTesting, setVetsoftTesting] = useState(false);
+  const [vetsoftSavingCredentials, setVetsoftSavingCredentials] = useState(false);
+  const [showVetsoftPassword, setShowVetsoftPassword] = useState(false);
   const [vetsoftServiceTypes, setVetsoftServiceTypes] = useState<{ id: number; name: string }[]>([]);
   const [vetsoftTenantUsers, setVetsoftTenantUsers] = useState<{ id: number; name: string }[]>([]);
   const [showElevenLabsKey, setShowElevenLabsKey] = useState(false);
@@ -116,6 +121,9 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     zernio_disconnect_reason: null,
     vetsoft_connected_at: null,
     vetsoft_last_error: null,
+    vetsoft_login_tenant: null,
+    vetsoft_login_email: null,
+    vetsoft_login_password: null,
     vetsoft_default_service_type_id: null,
     vetsoft_default_service_type_name: null,
     vetsoft_default_user_id: null,
@@ -200,6 +208,9 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
         zernio_disconnect_reason: data.zernio_disconnect_reason,
         vetsoft_connected_at: data.vetsoft_connected_at,
         vetsoft_last_error: data.vetsoft_last_error,
+        vetsoft_login_tenant: data.vetsoft_login_tenant,
+        vetsoft_login_email: data.vetsoft_login_email,
+        vetsoft_login_password: data.vetsoft_login_password,
         vetsoft_default_service_type_id: data.vetsoft_default_service_type_id,
         vetsoft_default_service_type_name: data.vetsoft_default_service_type_name,
         vetsoft_default_user_id: data.vetsoft_default_user_id,
@@ -301,6 +312,32 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     return () => window.removeEventListener('message', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const saveVetsoftCredentials = async () => {
+    if (!settings.id) return;
+    if (!settings.vetsoft_login_tenant?.trim() || !settings.vetsoft_login_email?.trim() || !settings.vetsoft_login_password?.trim()) {
+      toast.error('Preencha tenant, email e senha antes de salvar');
+      return;
+    }
+    setVetsoftSavingCredentials(true);
+    try {
+      const { error } = await supabase
+        .from('nina_settings')
+        .update({
+          vetsoft_login_tenant: settings.vetsoft_login_tenant.trim(),
+          vetsoft_login_email: settings.vetsoft_login_email.trim(),
+          vetsoft_login_password: settings.vetsoft_login_password,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', settings.id);
+      if (error) throw error;
+      toast.success('Credenciais do VetSoft salvas! Agora clique em "Testar conexão".');
+    } catch (error: any) {
+      toast.error(error?.message || 'Falha ao salvar credenciais do VetSoft');
+    } finally {
+      setVetsoftSavingCredentials(false);
+    }
+  };
 
   const testVetsoftConnection = useCallback(async () => {
     setVetsoftTesting(true);
@@ -678,16 +715,70 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
           <p className="text-xs text-red-300/80 mb-3">{settings.vetsoft_last_error}</p>
         )}
 
-        <Button onClick={testVetsoftConnection} disabled={vetsoftTesting} className="mb-4">
-          {vetsoftTesting ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Testando…
-            </>
-          ) : (
-            'Testar conexão'
-          )}
-        </Button>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">Tenant</label>
+            <input
+              type="text"
+              value={settings.vetsoft_login_tenant || ''}
+              onChange={(e) => setSettings({ ...settings, vetsoft_login_tenant: e.target.value })}
+              placeholder="identificador-do-tenant"
+              className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">Email</label>
+            <input
+              type="email"
+              value={settings.vetsoft_login_email || ''}
+              onChange={(e) => setSettings({ ...settings, vetsoft_login_email: e.target.value })}
+              placeholder="usuario@clinica.com.br"
+              className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-400 mb-1.5 block">Senha</label>
+            <div className="relative">
+              <input
+                type={showVetsoftPassword ? 'text' : 'password'}
+                value={settings.vetsoft_login_password || ''}
+                onChange={(e) => setSettings({ ...settings, vetsoft_login_password: e.target.value })}
+                placeholder="••••••••"
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 pr-10 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowVetsoftPassword(!showVetsoftPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                {showVetsoftPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mb-4">
+          <Button onClick={saveVetsoftCredentials} disabled={vetsoftSavingCredentials} variant="ghost">
+            {vetsoftSavingCredentials ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando…
+              </>
+            ) : (
+              'Salvar credenciais'
+            )}
+          </Button>
+          <Button onClick={testVetsoftConnection} disabled={vetsoftTesting}>
+            {vetsoftTesting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Testando…
+              </>
+            ) : (
+              'Testar conexão'
+            )}
+          </Button>
+        </div>
 
         {settings.vetsoft_connected_at && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -731,10 +822,9 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
           </summary>
           <div className="mt-2 p-4 rounded-lg bg-slate-950 border border-slate-800 text-xs space-y-2 text-slate-400">
             <p>
-              Solicite acesso à API em <strong className="text-white">suporte@vetsoft.com.br</strong> e
-              configure 3 secrets no Supabase (Edge Functions → Secrets): <code className="text-cyan-400">VETSOFT_TENANT</code>,{' '}
-              <code className="text-cyan-400">VETSOFT_EMAIL</code> e <code className="text-cyan-400">VETSOFT_PASSWORD</code>.
-              Depois clique em "Testar conexão" aqui.
+              Solicite acesso à API em <strong className="text-white">suporte@vetsoft.com.br</strong>. Você vai
+              receber um <strong className="text-white">tenant</strong> e as credenciais de login (email/senha).
+              Preencha os 3 campos acima, clique em "Salvar credenciais" e depois em "Testar conexão".
             </p>
             <p className="pt-2 border-t border-slate-700">
               📚 <a href="https://vetsoft.readme.io/reference/bem-vindo" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">Documentação da API VetSoft</a>

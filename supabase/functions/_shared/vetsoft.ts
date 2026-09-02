@@ -6,20 +6,15 @@
 // (nina-orchestrator, vetsoft-connect, vetsoft-save-defaults).
 //
 // A API do VetSoft é multi-tenant via header X-Tenant, autenticação com email/senha (Laravel
-// Sanctum) — não é OAuth com popup, por isso as credenciais ficam em 3 secrets do Supabase
-// (VETSOFT_TENANT, VETSOFT_EMAIL, VETSOFT_PASSWORD), não numa coluna do banco.
+// Sanctum) — não é OAuth com popup. As credenciais (tenant/email/senha) ficam em texto simples
+// no nina_settings (vetsoft_login_*), editáveis direto na UI de Configurações — mesmo padrão
+// já usado pra elevenlabs_api_key/openai_api_key/calcom_api_key nesse projeto.
 //
 // ⚠️ Os nomes de campo de resposta de /service-types e /tenant-users não estavam documentados
 // de forma completa na doc pública (ficaram truncados) — `pickField` tenta variantes plausíveis
 // em vez de travar em um nome errado. Revisar assim que houver acesso real pra confirmar.
 
 const VETSOFT_API = 'https://api.vetsoft.com.br';
-
-function envOrThrow(name: string): string {
-  const value = Deno.env.get(name);
-  if (!value) throw new Error(`${name} não configurada nos secrets do Supabase.`);
-  return value;
-}
 
 function pickField(obj: any, candidates: string[]): any {
   for (const key of candidates) {
@@ -31,20 +26,19 @@ function pickField(obj: any, candidates: string[]): any {
 async function getSettingsRow(supabase: any) {
   const { data, error } = await supabase
     .from('nina_settings')
-    .select('id, vetsoft_access_token, vetsoft_refresh_token, vetsoft_token_expires_at')
+    .select('id, vetsoft_access_token, vetsoft_refresh_token, vetsoft_token_expires_at, vetsoft_login_tenant, vetsoft_login_email, vetsoft_login_password')
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('nina_settings não encontrado');
+  if (!data.vetsoft_login_tenant || !data.vetsoft_login_email || !data.vetsoft_login_password) {
+    throw new Error('Credenciais do VetSoft não configuradas. Preencha tenant, email e senha em Configurações.');
+  }
   return data;
 }
 
-async function login(): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
-  const tenant = envOrThrow('VETSOFT_TENANT');
-  const email = envOrThrow('VETSOFT_EMAIL');
-  const password = envOrThrow('VETSOFT_PASSWORD');
-
+async function login(tenant: string, email: string, password: string): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
   const res = await fetch(`${VETSOFT_API}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
@@ -57,8 +51,7 @@ async function login(): Promise<{ access_token: string; refresh_token: string; e
   return json;
 }
 
-async function refresh(refreshToken: string): Promise<{ access_token: string; refresh_token: string; expires_in: number } | null> {
-  const tenant = envOrThrow('VETSOFT_TENANT');
+async function refresh(tenant: string, refreshToken: string): Promise<{ access_token: string; refresh_token: string; expires_in: number } | null> {
   const res = await fetch(`${VETSOFT_API}/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
@@ -96,28 +89,28 @@ export async function getVetsoftAccessToken(supabase: any): Promise<string> {
   }
 
   if (settings.vetsoft_refresh_token) {
-    const refreshed = await refresh(settings.vetsoft_refresh_token);
+    const refreshed = await refresh(settings.vetsoft_login_tenant, settings.vetsoft_refresh_token);
     if (refreshed) {
       await persistTokens(supabase, settings.id, refreshed);
       return refreshed.access_token;
     }
   }
 
-  const tokens = await login();
+  const tokens = await login(settings.vetsoft_login_tenant, settings.vetsoft_login_email, settings.vetsoft_login_password);
   await persistTokens(supabase, settings.id, tokens);
   return tokens.access_token;
 }
 
 // Wrapper de fetch com Authorization + X-Tenant, com 1 retry em 401 forçando novo login.
 export async function vetsoftFetch(supabase: any, path: string, init: RequestInit = {}, _retried = false): Promise<Response> {
-  const tenant = envOrThrow('VETSOFT_TENANT');
+  const settings = await getSettingsRow(supabase);
   const token = await getVetsoftAccessToken(supabase);
 
   const res = await fetch(`${VETSOFT_API}${path}`, {
     ...init,
     headers: {
       'Authorization': `Bearer ${token}`,
-      'X-Tenant': tenant,
+      'X-Tenant': settings.vetsoft_login_tenant,
       'Content-Type': 'application/json',
       ...(init.headers || {}),
     },
@@ -125,8 +118,7 @@ export async function vetsoftFetch(supabase: any, path: string, init: RequestIni
 
   if (res.status === 401 && !_retried) {
     // Token pode ter sido revogado/expirado fora do controle do cache local — força novo login.
-    const settings = await getSettingsRow(supabase);
-    const tokens = await login();
+    const tokens = await login(settings.vetsoft_login_tenant, settings.vetsoft_login_email, settings.vetsoft_login_password);
     await persistTokens(supabase, settings.id, tokens);
     return vetsoftFetch(supabase, path, init, true);
   }

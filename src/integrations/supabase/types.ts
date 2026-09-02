@@ -784,6 +784,9 @@ export type Database = {
           vetsoft_default_user_id: number | null
           vetsoft_default_user_name: string | null
           vetsoft_last_error: string | null
+          vetsoft_login_email: string | null
+          vetsoft_login_password: string | null
+          vetsoft_login_tenant: string | null
           vetsoft_refresh_token: string | null
           vetsoft_token_expires_at: string | null
           whatsapp_access_token: string | null
@@ -838,6 +841,9 @@ export type Database = {
           vetsoft_default_user_id?: number | null
           vetsoft_default_user_name?: string | null
           vetsoft_last_error?: string | null
+          vetsoft_login_email?: string | null
+          vetsoft_login_password?: string | null
+          vetsoft_login_tenant?: string | null
           vetsoft_refresh_token?: string | null
           vetsoft_token_expires_at?: string | null
           whatsapp_access_token?: string | null
@@ -892,6 +898,9 @@ export type Database = {
           vetsoft_default_user_id?: number | null
           vetsoft_default_user_name?: string | null
           vetsoft_last_error?: string | null
+          vetsoft_login_email?: string | null
+          vetsoft_login_password?: string | null
+          vetsoft_login_tenant?: string | null
           vetsoft_refresh_token?: string | null
           vetsoft_token_expires_at?: string | null
           whatsapp_access_token?: string | null
