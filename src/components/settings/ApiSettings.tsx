@@ -342,7 +342,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
         .update({
           vetsoft_login_tenant: settings.vetsoft_login_tenant.trim(),
           vetsoft_login_email: settings.vetsoft_login_email.trim(),
-          vetsoft_login_password: settings.vetsoft_login_password,
+          vetsoft_login_password: settings.vetsoft_login_password.trim(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', settings.id);

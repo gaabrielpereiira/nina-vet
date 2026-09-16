@@ -44,9 +44,13 @@ async function login(tenant: string, email: string, password: string): Promise<{
     headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
     body: JSON.stringify({ email, password }),
   });
-  const json = await res.json();
+  const json = await res.json().catch(() => ({}));
   if (!res.ok || !json?.access_token) {
-    throw new Error(`Falha no login VetSoft: ${json?.message || res.status}`);
+    const base = json?.message || `HTTP ${res.status}`;
+    const hint = res.status === 401 || res.status === 422 || /inv[áa]lid/i.test(String(base))
+      ? ' — confira o tenant (subdomínio da clínica), o email e a senha do usuário de API do VetSoft. O login da API precisa ser liberado pelo suporte@vetsoft.com.br e pode ser diferente do login do site.'
+      : '';
+    throw new Error(`Falha no login VetSoft: ${base}${hint}`);
   }
   return json;
 }
