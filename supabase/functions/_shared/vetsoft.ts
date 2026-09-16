@@ -294,3 +294,118 @@ export async function cancelAgendaEvent(supabase: any, codEvento: number, reason
     body: JSON.stringify({ des_motivo_cancelamento: reason || 'Cancelado pelo tutor via WhatsApp' }),
   });
 }
+
+// ── Catálogo (serviços / vacinas / produtos com preço) ───────────────────
+//
+// ⚠️ Os endpoints de catálogo do VetSoft não estão confirmados na doc pública. Em vez de travar
+// em um caminho só, sondamos candidatos plausíveis por tipo e usamos o primeiro que responder
+// 2xx com uma lista. O mapeamento de campos usa `pickField` com as variantes prováveis.
+
+export type VetsoftCatalogType = 'service' | 'vaccine' | 'product';
+
+export interface VetsoftCatalogItem {
+  external_id: number;
+  type: VetsoftCatalogType;
+  name: string;
+  category: string | null;
+  price: number | null;
+}
+
+export interface VetsoftCatalogSource {
+  type: VetsoftCatalogType;
+  path: string | null;
+  count: number;
+  error?: string;
+}
+
+const CATALOG_CANDIDATES: Record<VetsoftCatalogType, string[]> = {
+  service: ['/services', '/service', '/procedures'],
+  vaccine: ['/vaccines', '/vaccine', '/vaccination-types'],
+  product: ['/products', '/product'],
+};
+
+const ID_FIELDS = ['cod_servico', 'cod_produto', 'cod_vacina', 'cod_item', 'cod_procedimento', 'id'];
+const NAME_FIELDS = ['nom_servico', 'nom_produto', 'nom_vacina', 'nom_item', 'nom_procedimento', 'des_servico', 'des_produto', 'nome', 'name', 'descricao'];
+const PRICE_FIELDS = ['val_preco', 'vlr_preco', 'val_venda', 'vlr_venda', 'val_preco_venda', 'vlr_preco_venda', 'val_valor', 'preco', 'price', 'valor'];
+const CATEGORY_FIELDS = ['nom_categoria', 'nom_grupo', 'des_categoria', 'des_grupo', 'categoria', 'grupo', 'category'];
+
+function toNumber(v: any): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+function extractList(json: any): any[] {
+  if (Array.isArray(json)) return json;
+  if (Array.isArray(json?.data)) return json.data;
+  if (Array.isArray(json?.data?.data)) return json.data.data;
+  if (Array.isArray(json?.items)) return json.items;
+  return [];
+}
+
+function normalizeItem(raw: any, type: VetsoftCatalogType): VetsoftCatalogItem | null {
+  const id = toNumber(pickField(raw, ID_FIELDS));
+  const name = pickField(raw, NAME_FIELDS);
+  if (id == null || !name) return null;
+  const categoryRaw = pickField(raw, CATEGORY_FIELDS);
+  return {
+    external_id: id,
+    type,
+    name: String(name).trim(),
+    category: categoryRaw ? String(typeof categoryRaw === 'object' ? pickField(categoryRaw, NAME_FIELDS) ?? '' : categoryRaw).trim() || null : null,
+    price: toNumber(pickField(raw, PRICE_FIELDS)),
+  };
+}
+
+async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
+  const perPage = 100;
+  const maxPages = 30;
+  const out: any[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const sep = basePath.includes('?') ? '&' : '?';
+    const res = await vetsoftFetch(supabase, `${basePath}${sep}per_page=${perPage}&page=${page}`);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (page === 1) {
+        const err: any = new Error(json?.message || json?.error || `VetSoft ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+      break;
+    }
+    const list = extractList(json);
+    out.push(...list);
+    const lastPage = json?.meta?.last_page ?? json?.last_page;
+    if (lastPage && page >= Number(lastPage)) break;
+    if (list.length < perPage) break;
+  }
+  return out;
+}
+
+// Busca o catálogo completo. Nunca lança: cada tipo relata seu próprio erro em `sources`.
+export async function listCatalog(supabase: any): Promise<{ items: VetsoftCatalogItem[]; sources: VetsoftCatalogSource[] }> {
+  const items: VetsoftCatalogItem[] = [];
+  const sources: VetsoftCatalogSource[] = [];
+
+  for (const [type, paths] of Object.entries(CATALOG_CANDIDATES) as [VetsoftCatalogType, string[]][]) {
+    let matched = false;
+    let lastError = '';
+    for (const path of paths) {
+      try {
+        const raw = await fetchAllPages(supabase, path);
+        console.log(`[vetsoft] catálogo ${type} via ${path}: ${raw.length} itens brutos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 500) : '');
+        const normalized = raw.map((r) => normalizeItem(r, type)).filter((i): i is VetsoftCatalogItem => !!i);
+        items.push(...normalized);
+        sources.push({ type, path, count: normalized.length });
+        matched = true;
+        break;
+      } catch (e: any) {
+        lastError = e?.message || String(e);
+        console.warn(`[vetsoft] catálogo ${type} falhou em ${path}: ${lastError}`);
+      }
+    }
+    if (!matched) sources.push({ type, path: null, count: 0, error: lastError || 'Endpoint indisponível' });
+  }
+
+  return { items, sources };
+}
