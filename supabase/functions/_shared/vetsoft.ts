@@ -50,7 +50,8 @@ async function getSettingsRow(supabase: any) {
 async function login(tenant: string, email: string, password: string): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
   const res = await fetch(`${VETSOFT_API}/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
+    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant, ...BROWSER_HEADERS },
+
     body: JSON.stringify({ email, password }),
   });
   const json = await res.json().catch(() => ({}));
@@ -67,7 +68,7 @@ async function login(tenant: string, email: string, password: string): Promise<{
 async function refresh(tenant: string, refreshToken: string): Promise<{ access_token: string; refresh_token: string; expires_in: number } | null> {
   const res = await fetch(`${VETSOFT_API}/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
+    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant, ...BROWSER_HEADERS },
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
   if (!res.ok) return null;
@@ -122,7 +123,9 @@ export async function vetsoftFetch(supabase: any, path: string, init: RequestIni
   const res = await fetch(`${VETSOFT_API}${path}`, {
     ...init,
     headers: {
+      ...BROWSER_HEADERS,
       'Authorization': `Bearer ${token}`,
+
       'X-Tenant': settings.vetsoft_login_tenant,
       'Content-Type': 'application/json',
       ...(init.headers || {}),
