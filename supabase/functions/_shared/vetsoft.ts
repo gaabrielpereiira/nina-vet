@@ -402,25 +402,26 @@ export async function listCatalog(supabase: any): Promise<{ items: VetsoftCatalo
   const items: VetsoftCatalogItem[] = [];
   const sources: VetsoftCatalogSource[] = [];
 
-  for (const [type, paths] of Object.entries(CATALOG_CANDIDATES) as [VetsoftCatalogType, string[]][]) {
+  for (const [endpointType, paths] of Object.entries(CATALOG_CANDIDATES) as ['service' | 'product', string[]][]) {
     let matched = false;
     let lastError = '';
     for (const path of paths) {
       try {
         const raw = await fetchAllPages(supabase, path);
-        console.log(`[vetsoft] catálogo ${type} via ${path}: ${raw.length} itens brutos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 500) : '');
-        const normalized = raw.map((r) => normalizeItem(r, type)).filter((i): i is VetsoftCatalogItem => !!i);
+        const normalized = raw.map((r) => normalizeItem(r, endpointType)).filter((i): i is VetsoftCatalogItem => !!i);
+        console.log(`[vetsoft] catálogo ${endpointType} via ${path}: ${raw.length} brutos → ${normalized.length} válidos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 300) : '');
         items.push(...normalized);
-        sources.push({ type, path, count: normalized.length });
+        sources.push({ type: endpointType, path, count: normalized.length });
         matched = true;
         break;
       } catch (e: any) {
         lastError = e?.message || String(e);
-        console.warn(`[vetsoft] catálogo ${type} falhou em ${path}: ${lastError}`);
+        console.warn(`[vetsoft] catálogo ${endpointType} falhou em ${path}: ${lastError}`);
       }
     }
-    if (!matched) sources.push({ type, path: null, count: 0, error: lastError || 'Endpoint indisponível' });
+    if (!matched) sources.push({ type: endpointType, path: null, count: 0, error: lastError || 'Endpoint indisponível' });
   }
+
 
   return { items, sources };
 }
