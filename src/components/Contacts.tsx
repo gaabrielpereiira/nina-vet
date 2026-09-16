@@ -202,7 +202,7 @@ const Contacts: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                       <span className="text-slate-400">{new Date(contact.lastContact).toLocaleDateString('pt-BR')}</span>
+                       <span className="text-slate-400">{formatDate(contact.lastContact)}</span>
                        <div className="text-[10px] text-slate-600">via WhatsApp</div>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -212,21 +212,22 @@ const Contacts: React.FC = () => {
                           variant="primary" 
                           className="h-8 w-8 p-0 rounded-lg shadow-none" 
                           title="Iniciar Conversa"
-                          onClick={() => handleStartConversation(contact)}
+                          onClick={(e) => { e.stopPropagation(); handleStartConversation(contact); }}
                         >
                           <MessageSquare className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 w-8 p-0 rounded-lg text-slate-500 cursor-not-allowed opacity-50"
-                          disabled
-                          title="Em breve: Mais opções"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 rounded-lg"
+                          title="Ver ficha do lead"
+                          onClick={(e) => { e.stopPropagation(); setSelectedId(contact.id); }}
                         >
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </div>
                     </td>
+
                   </tr>
                 ))}
               </tbody>
