@@ -62,6 +62,22 @@ const Contacts: React.FC = () => {
     navigate(`/chat?contact=${encodeURIComponent(contact.phone)}`);
   };
 
+  const handleImportPets = async () => {
+    setImportingPets(true);
+    try {
+      const res = await importPets();
+      const msg = `Pets importados: ${res.created} novos, ${res.updated} atualizados`;
+      toast.success(res.without_tutor ? `${msg} (${res.without_tutor} sem tutor no sistema)` : msg);
+      if (res.errors?.length) toast.error(res.errors[0]);
+      await loadContacts();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao importar os pets');
+    } finally {
+      setImportingPets(false);
+    }
+  };
+
+
   return (
     <div className="p-8 h-full overflow-y-auto bg-slate-950 text-slate-50">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
