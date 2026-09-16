@@ -42,13 +42,27 @@ serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
-    const mode = body?.mode === 'apply' ? 'apply' : 'preview';
+    const mode = body?.mode === 'apply' ? 'apply' : body?.mode === 'pets' ? 'pets' : 'preview';
 
     if (mode === 'apply') {
       const tutors: IncomingTutor[] = Array.isArray(body?.tutors) ? body.tutors : [];
       if (tutors.length === 0) return json({ error: 'Nenhum tutor selecionado' }, 400);
       return json(await applyTutors(supabase, tutors, userId));
     }
+
+    if (mode === 'pets') {
+      try {
+        await getVetsoftAccessToken(supabase);
+      } catch (loginErr: any) {
+        return json({ error: loginErr?.message || 'Falha ao conectar com o VetSoft' }, 400);
+      }
+      try {
+        return json(await syncPetsOnly(supabase));
+      } catch (e: any) {
+        return json({ error: e?.message || 'Falha ao importar os pets do VetSoft' }, 400);
+      }
+    }
+
 
     try {
       await getVetsoftAccessToken(supabase);
