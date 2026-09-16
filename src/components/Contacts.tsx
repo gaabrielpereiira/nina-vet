@@ -6,6 +6,9 @@ import { api } from '../services/api';
 import { Contact } from '../types';
 import VetsoftClientsImportDialog from './contacts/VetsoftClientsImportDialog';
 import ContactDetailPanel from './contacts/ContactDetailPanel';
+import { useVetsoftClientImport } from '@/hooks/useVetsoftClientImport';
+import { toast } from 'sonner';
+
 
 const formatDate = (value?: string | null) => {
   if (!value) return '—';
@@ -20,7 +23,10 @@ const Contacts: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [importingPets, setImportingPets] = useState(false);
+  const { importPets } = useVetsoftClientImport();
   const navigate = useNavigate();
+
 
 
 
@@ -62,6 +68,22 @@ const Contacts: React.FC = () => {
     navigate(`/chat?contact=${encodeURIComponent(contact.phone)}`);
   };
 
+  const handleImportPets = async () => {
+    setImportingPets(true);
+    try {
+      const res = await importPets();
+      const msg = `Pets importados: ${res.created} novos, ${res.updated} atualizados`;
+      toast.success(res.without_tutor ? `${msg} (${res.without_tutor} sem tutor no sistema)` : msg);
+      if (res.errors?.length) toast.error(res.errors[0]);
+      await loadContacts();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao importar os pets');
+    } finally {
+      setImportingPets(false);
+    }
+  };
+
+
   return (
     <div className="p-8 h-full overflow-y-auto bg-slate-950 text-slate-50">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
@@ -78,6 +100,16 @@ const Contacts: React.FC = () => {
             <Download className="w-4 h-4 mr-2" />
             Importar do VetSoft
           </Button>
+          <Button
+            variant="outline"
+            className="bg-slate-950 border-slate-800"
+            onClick={handleImportPets}
+            disabled={importingPets}
+          >
+            {importingPets ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PawPrint className="w-4 h-4 mr-2" />}
+            Importar pets
+          </Button>
+
           <Button
             className="shadow-lg shadow-cyan-500/20 opacity-50 cursor-not-allowed"
             disabled

@@ -42,13 +42,27 @@ serve(async (req) => {
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
-    const mode = body?.mode === 'apply' ? 'apply' : 'preview';
+    const mode = body?.mode === 'apply' ? 'apply' : body?.mode === 'pets' ? 'pets' : 'preview';
 
     if (mode === 'apply') {
       const tutors: IncomingTutor[] = Array.isArray(body?.tutors) ? body.tutors : [];
       if (tutors.length === 0) return json({ error: 'Nenhum tutor selecionado' }, 400);
       return json(await applyTutors(supabase, tutors, userId));
     }
+
+    if (mode === 'pets') {
+      try {
+        await getVetsoftAccessToken(supabase);
+      } catch (loginErr: any) {
+        return json({ error: loginErr?.message || 'Falha ao conectar com o VetSoft' }, 400);
+      }
+      try {
+        return json(await syncPetsOnly(supabase));
+      } catch (e: any) {
+        return json({ error: e?.message || 'Falha ao importar os pets do VetSoft' }, 400);
+      }
+    }
+
 
     try {
       await getVetsoftAccessToken(supabase);
@@ -263,7 +277,80 @@ async function applyTutors(supabase: any, tutors: IncomingTutor[], userId: strin
   return { ok: true, created, updated, pets_created: petsCreated, errors };
 }
 
+// Importa apenas os pets do VetSoft, vinculando-os aos tutores já existentes no sistema.
+
+async function syncPetsOnly(supabase: any) {
+  const now = new Date().toISOString();
+  const errors: string[] = [];
+
+  const { pets } = await listPets(supabase);
+
+  const { data: contacts, error: cErr } = await supabase
+    .from('contacts')
+    .select('id, vetsoft_client_id')
+    .not('vetsoft_client_id', 'is', null);
+  if (cErr) throw cErr;
+
+  const contactIdByExternal = new Map<number, string>();
+  for (const c of contacts || []) contactIdByExternal.set(Number(c.vetsoft_client_id), c.id);
+
+  const { data: existingPets, error: pErr } = await supabase
+    .from('animals')
+    .select('id, vetsoft_animal_id')
+    .not('vetsoft_animal_id', 'is', null);
+  if (pErr) throw pErr;
+
+  const petIdByExternal = new Map<number, string>();
+  for (const p of existingPets || []) petIdByExternal.set(Number(p.vetsoft_animal_id), p.id);
+
+  const toInsert: any[] = [];
+  const toUpdate: any[] = [];
+  let withoutTutor = 0;
+
+  for (const p of pets) {
+    if (!p?.name || p?.external_id == null || p.client_external_id == null) continue;
+    const contactId = contactIdByExternal.get(Number(p.client_external_id));
+    if (!contactId) {
+      withoutTutor++;
+      continue;
+    }
+    const base = {
+      contact_id: contactId,
+      name: p.name,
+      species: p.species || null,
+      breed: p.breed || null,
+      sex: p.sex || null,
+      birth_date: p.birth_date || null,
+      vetsoft_animal_id: p.external_id,
+      vetsoft_synced_at: now,
+      vetsoft_sync_error: null,
+    };
+    const known = petIdByExternal.get(Number(p.external_id));
+    if (known) toUpdate.push({ id: known, ...base });
+    else toInsert.push(base);
+  }
+
+  let created = 0;
+  let updated = 0;
+
+  for (const batch of chunk(toInsert, 200)) {
+    const { error } = await supabase.from('animals').insert(batch);
+    if (error) errors.push(error.message);
+    else created += batch.length;
+  }
+  for (const batch of chunk(toUpdate, 200)) {
+    const { error } = await supabase.from('animals').upsert(batch, { onConflict: 'id' });
+    if (error) errors.push(error.message);
+    else updated += batch.length;
+  }
+
+  return { ok: true, pets_total: pets.length, created, updated, without_tutor: withoutTutor, errors };
+}
+
 function json(data: unknown, status = 200) {
+
+
+
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
