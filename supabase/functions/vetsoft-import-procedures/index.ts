@@ -43,6 +43,8 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const mode = body?.mode === 'apply' ? 'apply' : 'preview';
 
+
+
     if (mode === 'apply') {
       const items: IncomingItem[] = Array.isArray(body?.items) ? body.items : [];
       if (items.length === 0) return json({ error: 'Nenhum item selecionado' }, 400);

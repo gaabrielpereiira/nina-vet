@@ -16,6 +16,15 @@
 
 const VETSOFT_API = 'https://api.vetsoft.com.br';
 
+// O Cloudflare na frente da API do VetSoft devolve página de bloqueio (403 HTML) para clientes
+// sem cabeçalhos de navegador — por isso enviamos User-Agent/Accept explícitos.
+const BROWSER_HEADERS = {
+  'Accept': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Accept-Language': 'pt-BR,pt;q=0.9',
+};
+
+
 function pickField(obj: any, candidates: string[]): any {
   for (const key of candidates) {
     if (obj?.[key] !== undefined && obj?.[key] !== null) return obj[key];
@@ -41,7 +50,8 @@ async function getSettingsRow(supabase: any) {
 async function login(tenant: string, email: string, password: string): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
   const res = await fetch(`${VETSOFT_API}/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
+    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant, ...BROWSER_HEADERS },
+
     body: JSON.stringify({ email, password }),
   });
   const json = await res.json().catch(() => ({}));
@@ -58,7 +68,7 @@ async function login(tenant: string, email: string, password: string): Promise<{
 async function refresh(tenant: string, refreshToken: string): Promise<{ access_token: string; refresh_token: string; expires_in: number } | null> {
   const res = await fetch(`${VETSOFT_API}/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
+    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant, ...BROWSER_HEADERS },
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
   if (!res.ok) return null;
@@ -113,7 +123,9 @@ export async function vetsoftFetch(supabase: any, path: string, init: RequestIni
   const res = await fetch(`${VETSOFT_API}${path}`, {
     ...init,
     headers: {
+      ...BROWSER_HEADERS,
       'Authorization': `Bearer ${token}`,
+
       'X-Tenant': settings.vetsoft_login_tenant,
       'Content-Type': 'application/json',
       ...(init.headers || {}),
@@ -309,6 +321,7 @@ export interface VetsoftCatalogItem {
   name: string;
   category: string | null;
   price: number | null;
+  source_endpoint?: 'service' | 'product';
 }
 
 export interface VetsoftCatalogSource {
@@ -318,16 +331,17 @@ export interface VetsoftCatalogSource {
   error?: string;
 }
 
-const CATALOG_CANDIDATES: Record<VetsoftCatalogType, string[]> = {
+// O VetSoft não expõe lista própria de vacinas (/vaccines* → 404): elas vivem dentro de
+// serviços/produtos e são identificadas pelo grupo (nom_grupo contendo "vacin").
+const CATALOG_CANDIDATES: Record<'service' | 'product', string[]> = {
   service: ['/services', '/service', '/procedures'],
-  vaccine: ['/vaccines', '/vaccine', '/vaccination-types'],
   product: ['/products', '/product'],
 };
 
-const ID_FIELDS = ['cod_servico', 'cod_produto', 'cod_vacina', 'cod_item', 'cod_procedimento', 'id'];
-const NAME_FIELDS = ['nom_servico', 'nom_produto', 'nom_vacina', 'nom_item', 'nom_procedimento', 'des_servico', 'des_produto', 'nome', 'name', 'descricao'];
-const PRICE_FIELDS = ['val_preco', 'vlr_preco', 'val_venda', 'vlr_venda', 'val_preco_venda', 'vlr_preco_venda', 'val_valor', 'preco', 'price', 'valor'];
-const CATEGORY_FIELDS = ['nom_categoria', 'nom_grupo', 'des_categoria', 'des_grupo', 'categoria', 'grupo', 'category'];
+const ID_FIELDS = ['cod_prod_serv', 'cod_servico', 'cod_produto', 'cod_vacina', 'cod_item', 'cod_procedimento', 'id'];
+const NAME_FIELDS = ['nom_prod_serv', 'nom_servico', 'nom_produto', 'nom_vacina', 'nom_item', 'nom_procedimento', 'des_servico', 'des_produto', 'nome', 'name', 'descricao'];
+const PRICE_FIELDS = ['val_venda', 'val_preco', 'vlr_preco', 'vlr_venda', 'val_preco_venda', 'vlr_preco_venda', 'val_valor', 'preco', 'price', 'valor'];
+const CATEGORY_FIELDS = ['nom_grupo', 'nom_categoria', 'des_categoria', 'des_grupo', 'categoria', 'grupo', 'category'];
 
 function toNumber(v: any): number | null {
   if (v === null || v === undefined || v === '') return null;
@@ -343,69 +357,111 @@ function extractList(json: any): any[] {
   return [];
 }
 
-function normalizeItem(raw: any, type: VetsoftCatalogType): VetsoftCatalogItem | null {
+function normalizeItem(raw: any, endpointType: 'service' | 'product'): VetsoftCatalogItem | null {
   const id = toNumber(pickField(raw, ID_FIELDS));
   const name = pickField(raw, NAME_FIELDS);
   if (id == null || !name) return null;
+
+  // Itens inativos no VetSoft não entram na importação.
+  const situation = raw?.sit_registro;
+  if (situation !== undefined && situation !== null && Number(situation) !== 1) return null;
+
   const categoryRaw = pickField(raw, CATEGORY_FIELDS);
+  const category = categoryRaw
+    ? String(typeof categoryRaw === 'object' ? pickField(categoryRaw, NAME_FIELDS) ?? '' : categoryRaw).trim() || null
+    : null;
+
+  const type: VetsoftCatalogType = /vacin/i.test(category || '') || /vacin/i.test(String(name)) ? 'vaccine' : endpointType;
+
   return {
     external_id: id,
     type,
     name: String(name).trim(),
-    category: categoryRaw ? String(typeof categoryRaw === 'object' ? pickField(categoryRaw, NAME_FIELDS) ?? '' : categoryRaw).trim() || null : null,
+    category,
     price: toNumber(pickField(raw, PRICE_FIELDS)),
+    source_endpoint: endpointType,
   };
 }
 
+
 async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
   const perPage = 100;
-  const maxPages = 30;
+  const maxPages = 10;
   const out: any[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const sep = basePath.includes('?') ? '&' : '?';
-    const res = await vetsoftFetch(supabase, `${basePath}${sep}per_page=${perPage}&page=${page}`);
-    const json = await res.json().catch(() => ({}));
+    const url = `${basePath}${sep}per_page=${perPage}&page=${page}`;
+
+    let res = await vetsoftFetch(supabase, url);
+    // O VetSoft aplica throttling (403/429) quando várias listagens saem em sequência.
+    for (let attempt = 0; attempt < 2 && (res.status === 403 || res.status === 429); attempt++) {
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      res = await vetsoftFetch(supabase, url);
+    }
+
+    const bodyText = await res.text();
+    let json: any = {};
+    try { json = bodyText ? JSON.parse(bodyText) : {}; } catch { /* resposta não-JSON */ }
+
     if (!res.ok) {
+      console.warn(`[vetsoft] ${url} → ${res.status} body=${bodyText.replace(/\s+/g, ' ').slice(0, 300)}`);
       if (page === 1) {
-        const err: any = new Error(json?.message || json?.error || `VetSoft ${res.status}`);
+        const detail = /Attention Required/i.test(bodyText)
+          ? 'a API do VetSoft bloqueou temporariamente os acessos (proteção Cloudflare). Aguarde alguns minutos e tente novamente.'
+          : json?.message || json?.error || bodyText.slice(0, 200) || '';
+        const err: any = new Error(`VetSoft ${res.status}${detail ? `: ${detail}` : ''}`);
         err.status = res.status;
         throw err;
       }
       break;
     }
+
     const list = extractList(json);
     out.push(...list);
+
+    // O VetSoft ignora `per_page` e devolve a lista inteira de uma vez: se veio mais do que
+    // pedimos, não há paginação de verdade — parar aqui evita repetir a lista e ser bloqueado.
+    if (list.length > perPage) break;
+
     const lastPage = json?.meta?.last_page ?? json?.last_page;
     if (lastPage && page >= Number(lastPage)) break;
     if (list.length < perPage) break;
+    await new Promise((r) => setTimeout(r, 400));
   }
   return out;
 }
+
+
+
 
 // Busca o catálogo completo. Nunca lança: cada tipo relata seu próprio erro em `sources`.
 export async function listCatalog(supabase: any): Promise<{ items: VetsoftCatalogItem[]; sources: VetsoftCatalogSource[] }> {
   const items: VetsoftCatalogItem[] = [];
   const sources: VetsoftCatalogSource[] = [];
 
-  for (const [type, paths] of Object.entries(CATALOG_CANDIDATES) as [VetsoftCatalogType, string[]][]) {
+  for (const [endpointType, paths] of Object.entries(CATALOG_CANDIDATES) as ['service' | 'product', string[]][]) {
     let matched = false;
     let lastError = '';
     for (const path of paths) {
       try {
         const raw = await fetchAllPages(supabase, path);
-        console.log(`[vetsoft] catálogo ${type} via ${path}: ${raw.length} itens brutos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 500) : '');
-        const normalized = raw.map((r) => normalizeItem(r, type)).filter((i): i is VetsoftCatalogItem => !!i);
+        const normalized = raw.map((r) => normalizeItem(r, endpointType)).filter((i): i is VetsoftCatalogItem => !!i);
+        console.log(`[vetsoft] catálogo ${endpointType} via ${path}: ${raw.length} brutos → ${normalized.length} válidos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 300) : '');
         items.push(...normalized);
-        sources.push({ type, path, count: normalized.length });
+        sources.push({ type: endpointType, path, count: normalized.length });
         matched = true;
         break;
       } catch (e: any) {
         lastError = e?.message || String(e);
-        console.warn(`[vetsoft] catálogo ${type} falhou em ${path}: ${lastError}`);
+        console.warn(`[vetsoft] catálogo ${endpointType} falhou em ${path}: ${lastError}`);
+        // 403/429 = bloqueio/limite do VetSoft, não caminho errado: não vale sondar alternativas.
+        if (e?.status === 403 || e?.status === 429) break;
       }
     }
-    if (!matched) sources.push({ type, path: null, count: 0, error: lastError || 'Endpoint indisponível' });
+
+    if (!matched) sources.push({ type: endpointType, path: null, count: 0, error: lastError || 'Endpoint indisponível' });
   }
+
 
   return { items, sources };
 }

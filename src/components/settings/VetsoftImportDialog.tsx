@@ -144,11 +144,20 @@ const VetsoftImportDialog: React.FC<Props> = ({ onClose, onImported }) => {
           <>
             <div className="px-6 pt-4 space-y-3">
               {missingSources.length > 0 && (
-                <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
-                  Não foi possível ler do VetSoft:{' '}
-                  {missingSources.map((s) => TYPE_LABEL[s.type]).join(', ')}. Os demais itens seguem disponíveis abaixo.
+                <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 space-y-1">
+                  <p>
+                    Não foi possível ler do VetSoft:{' '}
+                    {missingSources.map((s) => TYPE_LABEL[s.type]).join(', ')}.
+                  </p>
+                  {missingSources
+                    .map((s) => s.error)
+                    .filter((e, i, arr) => e && arr.indexOf(e) === i)
+                    .map((e) => (
+                      <p key={e} className="text-amber-200/80">{e}</p>
+                    ))}
                 </div>
               )}
+
 
               <div className="flex flex-wrap items-center gap-2">
                 {(['new', 'changed', 'unchanged'] as TabKey[]).map((key) => (
