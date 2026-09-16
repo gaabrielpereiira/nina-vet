@@ -375,6 +375,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     }
   }, []);
 
+
   const saveVetsoftServiceType = async (id: string) => {
     const option = vetsoftServiceTypes.find((o) => String(o.id) === id);
     if (!option) return;
