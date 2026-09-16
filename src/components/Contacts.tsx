@@ -1,29 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { Search, Filter, MoreHorizontal, UserPlus, MessageSquare, Loader2, Mail, Phone, Users } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Search, Filter, MoreHorizontal, UserPlus, MessageSquare, Loader2, Mail, Phone, Users, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './Button';
 import { api } from '../services/api';
 import { Contact } from '../types';
+import VetsoftClientsImportDialog from './contacts/VetsoftClientsImportDialog';
 
 const Contacts: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showImport, setShowImport] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const loadContacts = async () => {
-      try {
-        const data = await api.fetchContacts();
-        setContacts(data);
-      } catch (error) {
-        console.error("Erro ao carregar contatos", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadContacts();
+
+  const loadContacts = useCallback(async () => {
+    try {
+      const data = await api.fetchContacts();
+      setContacts(data);
+    } catch (error) {
+      console.error("Erro ao carregar contatos", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadContacts();
+  }, [loadContacts]);
+
 
   const filteredContacts = contacts.filter(c => {
     const term = searchTerm.toLowerCase();
@@ -54,15 +59,33 @@ const Contacts: React.FC = () => {
           <h2 className="text-3xl font-bold tracking-tight text-white">Contatos</h2>
           <p className="text-sm text-slate-400 mt-1">Gerencie sua base de leads e clientes com inteligência.</p>
         </div>
-        <Button 
-          className="shadow-lg shadow-cyan-500/20 opacity-50 cursor-not-allowed"
-          disabled
-          title="Em breve: Adicionar contato"
-        >
-          <UserPlus className="w-4 h-4 mr-2" />
-          Novo Contato
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            className="bg-slate-950 border-slate-800"
+            onClick={() => setShowImport(true)}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Importar do VetSoft
+          </Button>
+          <Button
+            className="shadow-lg shadow-cyan-500/20 opacity-50 cursor-not-allowed"
+            disabled
+            title="Em breve: Adicionar contato"
+          >
+            <UserPlus className="w-4 h-4 mr-2" />
+            Novo Contato
+          </Button>
+        </div>
       </div>
+
+      {showImport && (
+        <VetsoftClientsImportDialog
+          onClose={() => setShowImport(false)}
+          onImported={loadContacts}
+        />
+      )}
+
 
       {/* Filters Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-4 mb-8 bg-slate-900/50 p-2 rounded-xl border border-slate-800">

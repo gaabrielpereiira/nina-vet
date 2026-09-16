@@ -196,6 +196,134 @@ export async function addClientContact(supabase: any, codCliente: number, phone:
   });
 }
 
+// ── Listagem de tutores e pets (importação em massa) ─────────────────────
+//
+// Os nomes de campo do VetSoft variam entre endpoints, então a extração é tolerante
+// (`pickField`) e o telefone é garimpado tanto de campos simples quanto de listas de contatos.
+
+export interface VetsoftTutor {
+  external_id: number;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  cpf: string | null;
+  raw_sample?: any;
+}
+
+export interface VetsoftPet {
+  external_id: number;
+  client_external_id: number | null;
+  name: string;
+  species: string | null;
+  breed: string | null;
+  sex: string | null;
+  birth_date: string | null;
+}
+
+const CLIENT_ID_FIELDS = ['cod_cliente', 'cod_client', 'id'];
+const CLIENT_NAME_FIELDS = ['nom_cliente', 'nom_pessoa', 'nome', 'name', 'razao_social'];
+const CLIENT_EMAIL_FIELDS = ['des_email', 'val_email', 'email'];
+const CLIENT_CPF_FIELDS = ['num_cpf', 'num_cpf_cnpj', 'cpf'];
+const PHONE_FIELDS = ['num_celular', 'num_telefone', 'num_whatsapp', 'val_contato', 'telefone', 'celular', 'whatsapp', 'contato'];
+
+function digitsOnly(v: any): string | null {
+  if (v === null || v === undefined) return null;
+  const d = String(v).replace(/\D/g, '');
+  return d.length >= 10 ? d : null;
+}
+
+// Procura o melhor telefone disponível: campos diretos, depois listas de contatos aninhadas
+// (prioriza contatos marcados como WhatsApp / celular).
+function extractPhone(raw: any): string | null {
+  const direct = digitsOnly(pickField(raw, PHONE_FIELDS));
+  if (direct) return direct;
+
+  const lists = [raw?.contatos, raw?.contacts, raw?.telefones, raw?.phones].filter(Array.isArray) as any[][];
+  for (const list of lists) {
+    const ranked = [...list].sort((a, b) => score(b) - score(a));
+    for (const c of ranked) {
+      const p = digitsOnly(pickField(c, PHONE_FIELDS)) ?? digitsOnly(c);
+      if (p) return p;
+    }
+  }
+  return null;
+
+  function score(c: any): number {
+    const messenger = String(c?.is_mensageiro ?? c?.tip_mensageiro ?? '').toLowerCase();
+    const type = String(c?.tip_contato ?? '').toLowerCase();
+    return (messenger.includes('whats') ? 2 : 0) + (type === 'cel' ? 1 : 0);
+  }
+}
+
+function normalizeTutor(raw: any): VetsoftTutor | null {
+  const id = toNumber(pickField(raw, CLIENT_ID_FIELDS));
+  const name = pickField(raw, CLIENT_NAME_FIELDS);
+  if (id == null || !name) return null;
+
+  const situation = raw?.sit_registro;
+  if (situation !== undefined && situation !== null && Number(situation) !== 1) return null;
+
+  const email = pickField(raw, CLIENT_EMAIL_FIELDS);
+  const cpf = pickField(raw, CLIENT_CPF_FIELDS);
+
+  return {
+    external_id: id,
+    name: String(name).trim(),
+    phone: extractPhone(raw),
+    email: email ? String(email).trim() || null : null,
+    cpf: cpf ? String(cpf).replace(/\D/g, '') || null : null,
+  };
+}
+
+export async function listTutors(supabase: any): Promise<{ tutors: VetsoftTutor[]; sample: any }> {
+  const raw = await fetchAllPages(supabase, '/clients');
+  const tutors = raw.map(normalizeTutor).filter((t): t is VetsoftTutor => !!t);
+  console.log(`[vetsoft] tutores: ${raw.length} brutos → ${tutors.length} válidos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 500) : '');
+  return { tutors, sample: raw[0] ?? null };
+}
+
+const ANIMAL_ID_FIELDS = ['cod_animal', 'id'];
+const ANIMAL_NAME_FIELDS = ['nom_animal', 'nome', 'name'];
+const SPECIES_FIELDS = ['nom_especie', 'especie', 'species'];
+const BREED_FIELDS = ['nom_raca', 'raca', 'breed'];
+
+function normalizeAnimalRow(raw: any): VetsoftPet | null {
+  const id = toNumber(pickField(raw, ANIMAL_ID_FIELDS));
+  const name = pickField(raw, ANIMAL_NAME_FIELDS);
+  if (id == null || !name) return null;
+
+  const situation = raw?.sit_registro;
+  if (situation !== undefined && situation !== null && Number(situation) !== 1) return null;
+
+  const nested = (fields: string[], obj: any) => {
+    const v = pickField(obj, fields);
+    if (!v) return null;
+    if (typeof v === 'object') return String(pickField(v, [...SPECIES_FIELDS, ...BREED_FIELDS, 'nome', 'name']) ?? '').trim() || null;
+    return String(v).trim() || null;
+  };
+
+  const sexRaw = String(pickField(raw, ['des_sexo', 'sexo', 'sex']) ?? '').trim().toUpperCase();
+  const birth = pickField(raw, ['dat_nascimento', 'data_nascimento', 'birth_date']);
+
+  return {
+    external_id: id,
+    client_external_id: toNumber(pickField(raw, CLIENT_ID_FIELDS)) ?? null,
+    name: String(name).trim(),
+    species: nested(SPECIES_FIELDS, raw),
+    breed: nested(BREED_FIELDS, raw),
+    sex: sexRaw === 'M' || sexRaw === 'F' ? sexRaw : null,
+    birth_date: birth ? String(birth).slice(0, 10) : null,
+  };
+}
+
+export async function listPets(supabase: any): Promise<{ pets: VetsoftPet[]; sample: any }> {
+  const raw = await fetchAllPages(supabase, '/animals');
+  const pets = raw.map(normalizeAnimalRow).filter((p): p is VetsoftPet => !!p);
+  console.log(`[vetsoft] pets: ${raw.length} brutos → ${pets.length} válidos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 500) : '');
+  return { pets, sample: raw[0] ?? null };
+}
+
+
 // ── Taxonomia de animal (raça obrigatória pra criar animal; espécie/pelagem opcionais) ────
 
 export async function findBreedByName(supabase: any, name: string): Promise<{ cod_raca: number; nom_raca: string } | null> {
