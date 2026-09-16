@@ -386,7 +386,7 @@ function normalizeItem(raw: any, endpointType: 'service' | 'product'): VetsoftCa
 
 async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
   const perPage = 100;
-  const maxPages = 30;
+  const maxPages = 10;
   const out: any[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const sep = basePath.includes('?') ? '&' : '?';
@@ -394,35 +394,43 @@ async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
 
     let res = await vetsoftFetch(supabase, url);
     // O VetSoft aplica throttling (403/429) quando várias listagens saem em sequência.
-    for (let attempt = 0; attempt < 3 && (res.status === 403 || res.status === 429); attempt++) {
-      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    for (let attempt = 0; attempt < 2 && (res.status === 403 || res.status === 429); attempt++) {
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
       res = await vetsoftFetch(supabase, url);
     }
 
     const bodyText = await res.text();
     let json: any = {};
     try { json = bodyText ? JSON.parse(bodyText) : {}; } catch { /* resposta não-JSON */ }
-    if (!res.ok) {
-      console.warn(`[vetsoft] ${url} → ${res.status} cf-ray=${res.headers.get('cf-ray')} cf-mitigated=${res.headers.get('cf-mitigated')} body=${bodyText.replace(/\s+/g, ' ').slice(0, 1200)}`);
-    }
-
 
     if (!res.ok) {
+      console.warn(`[vetsoft] ${url} → ${res.status} body=${bodyText.replace(/\s+/g, ' ').slice(0, 300)}`);
       if (page === 1) {
-        const detail = json?.message || json?.error || bodyText.slice(0, 200) || '';
+        const detail = /Attention Required/i.test(bodyText)
+          ? 'a API do VetSoft bloqueou temporariamente os acessos (proteção Cloudflare). Aguarde alguns minutos e tente novamente.'
+          : json?.message || json?.error || bodyText.slice(0, 200) || '';
         const err: any = new Error(`VetSoft ${res.status}${detail ? `: ${detail}` : ''}`);
         err.status = res.status;
         throw err;
       }
       break;
     }
+
     const list = extractList(json);
     out.push(...list);
+
+    // O VetSoft ignora `per_page` e devolve a lista inteira de uma vez: se veio mais do que
+    // pedimos, não há paginação de verdade — parar aqui evita repetir a lista e ser bloqueado.
+    if (list.length >= perPage) break;
+
     const lastPage = json?.meta?.last_page ?? json?.last_page;
     if (lastPage && page >= Number(lastPage)) break;
     if (list.length < perPage) break;
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 400));
   }
+  return out;
+}
+
   return out;
 }
 
