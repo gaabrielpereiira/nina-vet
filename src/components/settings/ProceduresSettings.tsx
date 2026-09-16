@@ -122,11 +122,24 @@ const ProceduresSettings: React.FC = () => {
           </p>
         </div>
         {isAdmin && (
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Novo procedimento
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowImport(true)}
+              disabled={!vetsoftConnected}
+              title={vetsoftConnected ? 'Trazer serviços, vacinas e produtos do VetSoft' : 'Conecte o VetSoft em Configurações > Integrações para importar'}
+              className="gap-2 border border-slate-700 hover:bg-slate-800 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              Importar do VetSoft
+            </Button>
+            <Button onClick={openCreate} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Novo procedimento
+            </Button>
+          </div>
         )}
+
       </div>
 
       <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden">
