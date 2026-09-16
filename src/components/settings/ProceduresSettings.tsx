@@ -169,7 +169,15 @@ const ProceduresSettings: React.FC = () => {
               {procedures.map((p) => (
                 <tr key={p.id} className="border-b border-slate-800/60 last:border-0 hover:bg-slate-800/20">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-white">{p.name}</div>
+                    <div className="font-medium text-white flex items-center gap-2">
+                      {p.name}
+                      {p.source === 'vetsoft' && (
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                          VetSoft
+                        </span>
+                      )}
+                    </div>
+
                     {p.description && (
                       <div className="text-xs text-slate-500 line-clamp-1 mt-0.5">{p.description}</div>
                     )}
@@ -390,7 +398,12 @@ const ProceduresSettings: React.FC = () => {
           </div>
         </div>
       )}
+
+      {showImport && (
+        <VetsoftImportDialog onClose={() => setShowImport(false)} onImported={refetch} />
+      )}
     </div>
+
   );
 };
 
