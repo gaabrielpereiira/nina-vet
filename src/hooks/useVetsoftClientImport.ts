@@ -97,5 +97,21 @@ export function useVetsoftClientImport() {
     }
   }, []);
 
-  return { fetchPreview, applyTutors, loading, applying };
+  const importPets = useCallback(async () => {
+    setApplying(true);
+    try {
+      return await invoke({ mode: 'pets' }) as {
+        pets_total: number;
+        created: number;
+        updated: number;
+        without_tutor: number;
+        errors: string[];
+      };
+    } finally {
+      setApplying(false);
+    }
+  }, []);
+
+  return { fetchPreview, applyTutors, importPets, loading, applying };
 }
+
