@@ -277,9 +277,8 @@ async function applyTutors(supabase: any, tutors: IncomingTutor[], userId: strin
   return { ok: true, created, updated, pets_created: petsCreated, errors };
 }
 
-function json(data: unknown, status = 200) {
-
 // Importa apenas os pets do VetSoft, vinculando-os aos tutores já existentes no sistema.
+
 async function syncPetsOnly(supabase: any) {
   const now = new Date().toISOString();
   const errors: string[] = [];
