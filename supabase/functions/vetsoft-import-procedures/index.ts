@@ -126,11 +126,29 @@ const TYPE_TO_CATEGORY: Record<string, string> = {
   product: 'Outros',
 };
 
+// Gravação em lote: uma leitura + inserts/updates em blocos.
+// (item por item estourava o tempo limite da função com ~800 itens)
 async function applyItems(supabase: any, items: IncomingItem[]) {
   const now = new Date().toISOString();
-  let created = 0;
-  let updated = 0;
   const errors: string[] = [];
+
+  const { data: existing, error: exErr } = await supabase
+    .from('procedures')
+    .select('id, name, vetsoft_item_id, vetsoft_item_type');
+  if (exErr) throw exErr;
+
+  const byExternal = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const p of existing || []) {
+    if (p.vetsoft_item_id != null && p.vetsoft_item_type) {
+      byExternal.set(`${p.vetsoft_item_type}:${p.vetsoft_item_id}`, p.id);
+    }
+    if (p.name && p.vetsoft_item_id == null) byName.set(p.name.trim().toLowerCase(), p.id);
+  }
+
+  const toInsert: any[] = [];
+  const toUpdate: any[] = [];
+  const usedIds = new Set<string>();
 
   for (const item of items) {
     if (!item?.name || item?.external_id == null || !item?.type) continue;
@@ -148,41 +166,37 @@ async function applyItems(supabase: any, items: IncomingItem[]) {
       source: 'vetsoft',
     };
 
-    // Localiza o registro existente por (tipo, id) do VetSoft ou, no primeiro import, pelo nome.
-    const { data: byExt } = await supabase
-      .from('procedures')
-      .select('id')
-      .eq('vetsoft_item_type', item.type)
-      .eq('vetsoft_item_id', item.external_id)
-      .maybeSingle();
+    const key = `${item.type}:${item.external_id}`;
+    const targetId = byExternal.get(key) ?? byName.get(item.name.trim().toLowerCase()) ?? null;
 
-    let targetId: string | null = byExt?.id ?? null;
-    if (!targetId) {
-      const { data: byName } = await supabase
-        .from('procedures')
-        .select('id')
-        .ilike('name', item.name)
-        .is('vetsoft_item_id', null)
-        .limit(1)
-        .maybeSingle();
-      targetId = byName?.id ?? null;
+    if (targetId && !usedIds.has(targetId)) {
+      usedIds.add(targetId);
+      toUpdate.push({ id: targetId, ...base });
+    } else if (!targetId) {
+      toInsert.push({ ...base, description: null, requirements: null, duration_minutes: null, is_active: true });
     }
+  }
 
-    if (targetId) {
-      const { error } = await supabase.from('procedures').update(base).eq('id', targetId);
-      if (error) errors.push(`${item.name}: ${error.message}`);
-      else updated++;
-    } else {
-      const { error } = await supabase.from('procedures').insert({
-        ...base,
-        description: null,
-        requirements: null,
-        duration_minutes: null,
-        is_active: true,
-      });
-      if (error) errors.push(`${item.name}: ${error.message}`);
-      else created++;
-    }
+  const chunk = <T,>(arr: T[], size: number): T[][] => {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  };
+
+  let created = 0;
+  let updated = 0;
+
+  for (const batch of chunk(toInsert, 200)) {
+    const { error } = await supabase.from('procedures').insert(batch);
+    if (error) errors.push(error.message);
+    else created += batch.length;
+  }
+
+  // upsert pela chave primária = update em lote dos registros já existentes
+  for (const batch of chunk(toUpdate, 200)) {
+    const { error } = await supabase.from('procedures').upsert(batch, { onConflict: 'id' });
+    if (error) errors.push(error.message);
+    else updated += batch.length;
   }
 
   return { ok: true, created, updated, errors };
