@@ -33,11 +33,27 @@ const formatPrice = (p: Procedure) => {
 
 const ProceduresSettings: React.FC = () => {
   const { isAdmin } = useCompanySettings();
-  const { procedures, loading, createProcedure, updateProcedure, deleteProcedure, toggleActive } = useProcedures();
+  const { procedures, loading, createProcedure, updateProcedure, deleteProcedure, toggleActive, refetch } = useProcedures();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Procedure | null>(null);
   const [form, setForm] = useState<ProcedureInput>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [vetsoftConnected, setVetsoftConnected] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('nina_settings')
+        .select('vetsoft_connected_at, vetsoft_login_tenant')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      setVetsoftConnected(!!(data?.vetsoft_connected_at || data?.vetsoft_login_tenant));
+    })();
+  }, []);
+
+
 
   const openCreate = () => {
     setEditing(null);
