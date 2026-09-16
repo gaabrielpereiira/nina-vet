@@ -973,7 +973,11 @@ export type Database = {
           price_min: number | null
           price_type: string
           requirements: string | null
+          source: string
           updated_at: string
+          vetsoft_item_id: number | null
+          vetsoft_item_type: string | null
+          vetsoft_synced_at: string | null
         }
         Insert: {
           category?: string | null
@@ -988,7 +992,11 @@ export type Database = {
           price_min?: number | null
           price_type?: string
           requirements?: string | null
+          source?: string
           updated_at?: string
+          vetsoft_item_id?: number | null
+          vetsoft_item_type?: string | null
+          vetsoft_synced_at?: string | null
         }
         Update: {
           category?: string | null
@@ -1003,7 +1011,11 @@ export type Database = {
           price_min?: number | null
           price_type?: string
           requirements?: string | null
+          source?: string
           updated_at?: string
+          vetsoft_item_id?: number | null
+          vetsoft_item_type?: string | null
+          vetsoft_synced_at?: string | null
         }
         Relationships: []
       }
