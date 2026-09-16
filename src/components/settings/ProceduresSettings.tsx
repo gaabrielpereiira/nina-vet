@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, X, Stethoscope, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Plus, Pencil, Trash2, X, Stethoscope, Loader2, Download } from 'lucide-react';
 import { Button } from '../Button';
 import { useProcedures, Procedure, ProcedureInput } from '@/hooks/useProcedures';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { supabase } from '@/integrations/supabase/client';
+import VetsoftImportDialog from './VetsoftImportDialog';
+
 
 const CATEGORIES = ['Consulta', 'Cirurgia', 'Vacina', 'Exame', 'Internação', 'Estética', 'Emergência', 'Outros'];
 
