@@ -23,7 +23,10 @@ const Contacts: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [importingPets, setImportingPets] = useState(false);
+  const { importPets } = useVetsoftClientImport();
   const navigate = useNavigate();
+
 
 
 
