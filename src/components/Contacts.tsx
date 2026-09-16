@@ -5,13 +5,16 @@ import { Button } from './Button';
 import { api } from '../services/api';
 import { Contact } from '../types';
 import VetsoftClientsImportDialog from './contacts/VetsoftClientsImportDialog';
+import ContactDetailPanel from './contacts/ContactDetailPanel';
 
 const Contacts: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const navigate = useNavigate();
+
 
 
   const loadContacts = useCallback(async () => {
