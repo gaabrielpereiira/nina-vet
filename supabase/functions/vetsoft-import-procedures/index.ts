@@ -8,7 +8,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getVetsoftAccessToken, listCatalog, vetsoftFetch } from "../_shared/vetsoft.ts";
+import { getVetsoftAccessToken, listCatalog } from "../_shared/vetsoft.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
