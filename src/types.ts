@@ -85,8 +85,15 @@ export interface Contact {
   phone: string;
   email: string;
   status: 'lead' | 'customer' | 'churned';
+  /** ISO date string da última atividade */
   lastContact: string;
+  firstContact?: string;
+  tags?: string[];
+  notes?: string | null;
+  vetsoftClientId?: number | null;
+  petsCount?: number;
 }
+
 
 export interface StatMetric {
   label: string;

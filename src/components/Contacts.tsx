@@ -1,17 +1,27 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, Filter, MoreHorizontal, UserPlus, MessageSquare, Loader2, Mail, Phone, Users, Download } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, UserPlus, MessageSquare, Loader2, Mail, Phone, Users, Download, PawPrint } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './Button';
 import { api } from '../services/api';
 import { Contact } from '../types';
 import VetsoftClientsImportDialog from './contacts/VetsoftClientsImportDialog';
+import ContactDetailPanel from './contacts/ContactDetailPanel';
+
+const formatDate = (value?: string | null) => {
+  if (!value) return '—';
+  const d = new Date(value.length <= 10 ? `${value}T12:00:00` : value);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+};
 
 const Contacts: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showImport, setShowImport] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const navigate = useNavigate();
+
 
 
   const loadContacts = useCallback(async () => {
@@ -86,6 +96,16 @@ const Contacts: React.FC = () => {
         />
       )}
 
+      {selectedId && (
+        <ContactDetailPanel
+          contactId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onOpenConversation={(phone) => navigate(`/chat?contact=${encodeURIComponent(phone)}`)}
+        />
+      )}
+
+
+
 
       {/* Filters Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-4 mb-8 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
@@ -139,20 +159,36 @@ const Contacts: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-800/50">
                 {filteredContacts.map((contact) => (
-                  <tr key={contact.id} className="hover:bg-slate-800/40 transition-colors group">
+                  <tr
+                    key={contact.id}
+                    className="hover:bg-slate-800/40 transition-colors group cursor-pointer"
+                    onClick={() => setSelectedId(contact.id)}
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-700 flex items-center justify-center text-sm font-bold text-cyan-400 shadow-inner">
                           {(contact.name || contact.phone || '?').substring(0, 2).toUpperCase()}
                         </div>
                         <div>
-                            <div className="font-semibold text-slate-200 group-hover:text-cyan-400 transition-colors">
+                            <div className="font-semibold text-slate-200 group-hover:text-cyan-400 transition-colors flex items-center gap-2">
                               {contact.name || 'Sem nome'}
+                              {contact.vetsoftClientId != null && (
+                                <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-[10px] text-cyan-300">VetSoft</span>
+                              )}
                             </div>
-                            <div className="text-xs text-slate-500">{contact.phone}</div>
+                            <div className="text-xs text-slate-500 flex items-center gap-2">
+                              {contact.phone}
+                              {!!contact.petsCount && (
+                                <span className="inline-flex items-center gap-1 text-slate-400">
+                                  <PawPrint className="w-3 h-3 text-cyan-400" />
+                                  {contact.petsCount}
+                                </span>
+                              )}
+                            </div>
                         </div>
                       </div>
                     </td>
+
                     <td className="px-6 py-4">
                       <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${getStatusColor(contact.status)}`}>
                         {contact.status === 'customer' ? 'Cliente Ativo' : contact.status === 'lead' ? 'Lead Qualificado' : 'Churned'}
@@ -173,7 +209,7 @@ const Contacts: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                       <span className="text-slate-400">{new Date(contact.lastContact).toLocaleDateString('pt-BR')}</span>
+                       <span className="text-slate-400">{formatDate(contact.lastContact)}</span>
                        <div className="text-[10px] text-slate-600">via WhatsApp</div>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -183,21 +219,22 @@ const Contacts: React.FC = () => {
                           variant="primary" 
                           className="h-8 w-8 p-0 rounded-lg shadow-none" 
                           title="Iniciar Conversa"
-                          onClick={() => handleStartConversation(contact)}
+                          onClick={(e) => { e.stopPropagation(); handleStartConversation(contact); }}
                         >
                           <MessageSquare className="w-4 h-4" />
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="h-8 w-8 p-0 rounded-lg text-slate-500 cursor-not-allowed opacity-50"
-                          disabled
-                          title="Em breve: Mais opções"
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 rounded-lg"
+                          title="Ver ficha do lead"
+                          onClick={(e) => { e.stopPropagation(); setSelectedId(contact.id); }}
                         >
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </div>
                     </td>
+
                   </tr>
                 ))}
               </tbody>

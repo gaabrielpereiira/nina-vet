@@ -327,9 +327,8 @@ export const api = {
   fetchContacts: async (): Promise<Contact[]> => {
     const { data, error } = await supabase
       .from('contacts')
-      .select('*')
-      .order('last_activity', { ascending: false })
-      .limit(100);
+      .select('id, name, call_name, phone_number, email, tags, notes, vetsoft_client_id, first_contact_date, last_activity')
+      .order('last_activity', { ascending: false });
 
     if (error) {
       console.error('[API] Error fetching contacts:', error);
@@ -340,15 +339,29 @@ export const api = {
       return []; // Return empty array if no data
     }
 
+    // Contagem de pets por tutor (uma consulta só, agrupada no cliente).
+    const petsCount = new Map<string, number>();
+    const { data: pets } = await supabase.from('animals').select('contact_id');
+    for (const p of pets || []) {
+      if (!p.contact_id) continue;
+      petsCount.set(p.contact_id, (petsCount.get(p.contact_id) || 0) + 1);
+    }
+
     return data.map(c => ({
       id: c.id,
       name: c.name || c.call_name || c.phone_number,
       phone: c.phone_number,
       email: c.email || '',
       status: 'lead' as const, // Map from tags or client_memory in future
-      lastContact: new Date(c.last_activity).toLocaleDateString('pt-BR')
+      lastContact: c.last_activity,
+      firstContact: c.first_contact_date,
+      tags: c.tags || [],
+      notes: c.notes,
+      vetsoftClientId: c.vetsoft_client_id,
+      petsCount: petsCount.get(c.id) || 0,
     }));
   },
+
 
   /**
    * Fetch team members from database
