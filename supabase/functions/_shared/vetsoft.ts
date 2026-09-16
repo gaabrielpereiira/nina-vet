@@ -309,6 +309,7 @@ export interface VetsoftCatalogItem {
   name: string;
   category: string | null;
   price: number | null;
+  source_endpoint?: 'service' | 'product';
 }
 
 export interface VetsoftCatalogSource {
@@ -318,16 +319,17 @@ export interface VetsoftCatalogSource {
   error?: string;
 }
 
-const CATALOG_CANDIDATES: Record<VetsoftCatalogType, string[]> = {
+// O VetSoft não expõe lista própria de vacinas (/vaccines* → 404): elas vivem dentro de
+// serviços/produtos e são identificadas pelo grupo (nom_grupo contendo "vacin").
+const CATALOG_CANDIDATES: Record<'service' | 'product', string[]> = {
   service: ['/services', '/service', '/procedures'],
-  vaccine: ['/vaccines', '/vaccine', '/vaccination-types'],
   product: ['/products', '/product'],
 };
 
-const ID_FIELDS = ['cod_servico', 'cod_produto', 'cod_vacina', 'cod_item', 'cod_procedimento', 'id'];
-const NAME_FIELDS = ['nom_servico', 'nom_produto', 'nom_vacina', 'nom_item', 'nom_procedimento', 'des_servico', 'des_produto', 'nome', 'name', 'descricao'];
-const PRICE_FIELDS = ['val_preco', 'vlr_preco', 'val_venda', 'vlr_venda', 'val_preco_venda', 'vlr_preco_venda', 'val_valor', 'preco', 'price', 'valor'];
-const CATEGORY_FIELDS = ['nom_categoria', 'nom_grupo', 'des_categoria', 'des_grupo', 'categoria', 'grupo', 'category'];
+const ID_FIELDS = ['cod_prod_serv', 'cod_servico', 'cod_produto', 'cod_vacina', 'cod_item', 'cod_procedimento', 'id'];
+const NAME_FIELDS = ['nom_prod_serv', 'nom_servico', 'nom_produto', 'nom_vacina', 'nom_item', 'nom_procedimento', 'des_servico', 'des_produto', 'nome', 'name', 'descricao'];
+const PRICE_FIELDS = ['val_venda', 'val_preco', 'vlr_preco', 'vlr_venda', 'val_preco_venda', 'vlr_preco_venda', 'val_valor', 'preco', 'price', 'valor'];
+const CATEGORY_FIELDS = ['nom_grupo', 'nom_categoria', 'des_categoria', 'des_grupo', 'categoria', 'grupo', 'category'];
 
 function toNumber(v: any): number | null {
   if (v === null || v === undefined || v === '') return null;
@@ -343,19 +345,32 @@ function extractList(json: any): any[] {
   return [];
 }
 
-function normalizeItem(raw: any, type: VetsoftCatalogType): VetsoftCatalogItem | null {
+function normalizeItem(raw: any, endpointType: 'service' | 'product'): VetsoftCatalogItem | null {
   const id = toNumber(pickField(raw, ID_FIELDS));
   const name = pickField(raw, NAME_FIELDS);
   if (id == null || !name) return null;
+
+  // Itens inativos no VetSoft não entram na importação.
+  const situation = raw?.sit_registro;
+  if (situation !== undefined && situation !== null && Number(situation) !== 1) return null;
+
   const categoryRaw = pickField(raw, CATEGORY_FIELDS);
+  const category = categoryRaw
+    ? String(typeof categoryRaw === 'object' ? pickField(categoryRaw, NAME_FIELDS) ?? '' : categoryRaw).trim() || null
+    : null;
+
+  const type: VetsoftCatalogType = /vacin/i.test(category || '') || /vacin/i.test(String(name)) ? 'vaccine' : endpointType;
+
   return {
     external_id: id,
     type,
     name: String(name).trim(),
-    category: categoryRaw ? String(typeof categoryRaw === 'object' ? pickField(categoryRaw, NAME_FIELDS) ?? '' : categoryRaw).trim() || null : null,
+    category,
     price: toNumber(pickField(raw, PRICE_FIELDS)),
+    source_endpoint: endpointType,
   };
 }
+
 
 async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
   const perPage = 100;
