@@ -347,6 +347,9 @@ async function syncPetsOnly(supabase: any) {
   return { ok: true, pets_total: pets.length, created, updated, without_tutor: withoutTutor, errors };
 }
 
+function json(data: unknown, status = 200) {
+
+
 
   return new Response(JSON.stringify(data), {
     status,
