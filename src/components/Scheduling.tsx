@@ -30,6 +30,19 @@ const Scheduling: React.FC = () => {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
   const { procedures: activeProcedures } = useProcedures(true);
+  const { syncAgenda, syncing } = useVetsoftAgendaSync();
+
+  const handleSyncVetsoft = async () => {
+    try {
+      const res = await syncAgenda();
+      toast.success(`Agenda sincronizada: ${res.created} novos, ${res.updated} atualizados`);
+      if (res.errors?.length) toast.error(res.errors[0]);
+      setAppointments(await api.fetchAppointments());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao sincronizar a agenda do VetSoft');
+    }
+  };
+
 
   // Form State
   const [formData, setFormData] = useState({
