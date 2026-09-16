@@ -431,8 +431,11 @@ export async function listCatalog(supabase: any): Promise<{ items: VetsoftCatalo
       } catch (e: any) {
         lastError = e?.message || String(e);
         console.warn(`[vetsoft] catálogo ${endpointType} falhou em ${path}: ${lastError}`);
+        // 403/429 = bloqueio/limite do VetSoft, não caminho errado: não vale sondar alternativas.
+        if (e?.status === 403 || e?.status === 429) break;
       }
     }
+
     if (!matched) sources.push({ type: endpointType, path: null, count: 0, error: lastError || 'Endpoint indisponível' });
   }
 
