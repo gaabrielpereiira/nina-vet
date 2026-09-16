@@ -378,11 +378,23 @@ async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
   const out: any[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const sep = basePath.includes('?') ? '&' : '?';
-    const res = await vetsoftFetch(supabase, `${basePath}${sep}per_page=${perPage}&page=${page}`);
-    const json = await res.json().catch(() => ({}));
+    const url = `${basePath}${sep}per_page=${perPage}&page=${page}`;
+
+    let res = await vetsoftFetch(supabase, url);
+    // O VetSoft aplica throttling (403/429) quando várias listagens saem em sequência.
+    for (let attempt = 0; attempt < 3 && (res.status === 403 || res.status === 429); attempt++) {
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      res = await vetsoftFetch(supabase, url);
+    }
+
+    const bodyText = await res.text();
+    let json: any = {};
+    try { json = bodyText ? JSON.parse(bodyText) : {}; } catch { /* resposta não-JSON */ }
+
     if (!res.ok) {
       if (page === 1) {
-        const err: any = new Error(json?.message || json?.error || `VetSoft ${res.status}`);
+        const detail = json?.message || json?.error || bodyText.slice(0, 200) || '';
+        const err: any = new Error(`VetSoft ${res.status}${detail ? `: ${detail}` : ''}`);
         err.status = res.status;
         throw err;
       }
@@ -393,9 +405,11 @@ async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
     const lastPage = json?.meta?.last_page ?? json?.last_page;
     if (lastPage && page >= Number(lastPage)) break;
     if (list.length < perPage) break;
+    await new Promise((r) => setTimeout(r, 300));
   }
   return out;
 }
+
 
 // Busca o catálogo completo. Nunca lança: cada tipo relata seu próprio erro em `sources`.
 export async function listCatalog(supabase: any): Promise<{ items: VetsoftCatalogItem[]; sources: VetsoftCatalogSource[] }> {
