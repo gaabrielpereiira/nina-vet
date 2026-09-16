@@ -79,6 +79,16 @@ const Contacts: React.FC = () => {
             Importar do VetSoft
           </Button>
           <Button
+            variant="outline"
+            className="bg-slate-950 border-slate-800"
+            onClick={handleImportPets}
+            disabled={importingPets}
+          >
+            {importingPets ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PawPrint className="w-4 h-4 mr-2" />}
+            Importar pets
+          </Button>
+
+          <Button
             className="shadow-lg shadow-cyan-500/20 opacity-50 cursor-not-allowed"
             disabled
             title="Em breve: Adicionar contato"
