@@ -468,6 +468,93 @@ export async function cancelAgendaEvent(supabase: any, codEvento: number, reason
   });
 }
 
+// Leitura da agenda para espelhar os agendamentos do VetSoft na agenda da Nina.
+export interface VetsoftAgendaItem {
+  external_id: number;
+  client_external_id: number | null;
+  animal_external_id: number | null;
+  starts_at: string; // ISO
+  duration: number; // minutos
+  title: string;
+  description: string | null;
+  status: string | null;
+}
+
+const EVENT_ID_FIELDS = ['cod_evento', 'cod_agenda', 'id'];
+const EVENT_START_FIELDS = ['dat_evento', 'dat_inicio', 'data_evento', 'start', 'dat_agendamento'];
+const EVENT_END_FIELDS = ['dat_termino', 'dat_fim', 'end'];
+const EVENT_TITLE_FIELDS = ['des_evento', 'nom_evento', 'des_tipo_atendimento', 'titulo', 'title'];
+
+function nestedId(raw: any, keys: string[], fields: string[]): number | null {
+  for (const key of keys) {
+    const id = toNumber(pickField(raw?.[key], fields));
+    if (id != null) return id;
+  }
+  return null;
+}
+
+function normalizeAgendaItem(raw: any): VetsoftAgendaItem | null {
+  const id = toNumber(pickField(raw, EVENT_ID_FIELDS));
+  const start = pickField(raw, EVENT_START_FIELDS);
+  if (id == null || !start) return null;
+
+  const startDate = new Date(String(start).replace(' ', 'T'));
+  if (isNaN(startDate.getTime())) return null;
+
+  const endRaw = pickField(raw, EVENT_END_FIELDS);
+  const endDate = endRaw ? new Date(String(endRaw).replace(' ', 'T')) : null;
+  const duration = endDate && !isNaN(endDate.getTime())
+    ? Math.max(15, Math.round((endDate.getTime() - startDate.getTime()) / 60000))
+    : 30;
+
+  const clientId = toNumber(pickField(raw, ['cod_cliente', 'cod_client']))
+    ?? nestedId(raw, ['cliente', 'tutor', 'client'], CLIENT_ID_FIELDS);
+  const animalId = toNumber(pickField(raw, ['cod_animal']))
+    ?? nestedId(raw, ['animal', 'pet'], ANIMAL_ID_FIELDS);
+
+  const titleRaw = pickField(raw, EVENT_TITLE_FIELDS);
+  const nestedTitle = typeof raw?.tipo_atendimento === 'object'
+    ? pickField(raw.tipo_atendimento, ['nom_tipo_atendimento', 'des_tipo_atendimento', 'nome', 'name'])
+    : null;
+
+  return {
+    external_id: id,
+    client_external_id: clientId ?? null,
+    animal_external_id: animalId ?? null,
+    starts_at: startDate.toISOString(),
+    duration,
+    title: String(titleRaw || nestedTitle || 'Agendamento VetSoft').trim(),
+    description: (() => {
+      const d = pickField(raw, ['obs_evento', 'des_observacao', 'observacao', 'obs']);
+      return d ? String(d).trim() || null : null;
+    })(),
+    status: (() => {
+      const s = pickField(raw, ['sit_evento', 'des_situacao', 'status']);
+      return s != null ? String(s).trim() || null : null;
+    })(),
+  };
+}
+
+// Lista os eventos da agenda num intervalo de datas (YYYY-MM-DD).
+export async function listAgendaEvents(
+  supabase: any,
+  from: string,
+  to: string,
+): Promise<{ events: VetsoftAgendaItem[]; sample: any }> {
+  const query = `dat_inicio=${from}&dat_fim=${to}&dat_evento_inicio=${from}&dat_evento_fim=${to}`;
+  const raw = await fetchAllPages(supabase, `/agenda?${query}`);
+  const byId = new Map<number, VetsoftAgendaItem>();
+  for (const row of raw) {
+    const item = normalizeAgendaItem(row);
+    if (item) byId.set(item.external_id, item);
+  }
+  const events = [...byId.values()];
+  console.log(`[vetsoft] agenda ${from}..${to}: ${raw.length} brutos → ${events.length} válidos`);
+  return { events, sample: raw[0] ?? null };
+}
+
+
+
 // ── Catálogo (serviços / vacinas / produtos com preço) ───────────────────
 //
 // ⚠️ Os endpoints de catálogo do VetSoft não estão confirmados na doc pública. Em vez de travar
