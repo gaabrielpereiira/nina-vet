@@ -89,6 +89,16 @@ const Contacts: React.FC = () => {
         />
       )}
 
+      {selectedId && (
+        <ContactDetailPanel
+          contactId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onOpenConversation={(phone) => navigate(`/chat?contact=${encodeURIComponent(phone)}`)}
+        />
+      )}
+
+
+
 
       {/* Filters Bar */}
       <div className="flex flex-col sm:flex-row items-center gap-4 mb-8 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
