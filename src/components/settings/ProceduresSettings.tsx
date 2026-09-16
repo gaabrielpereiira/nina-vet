@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, X, Stethoscope, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Plus, Pencil, Trash2, X, Stethoscope, Loader2, Download } from 'lucide-react';
 import { Button } from '../Button';
 import { useProcedures, Procedure, ProcedureInput } from '@/hooks/useProcedures';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
+import { supabase } from '@/integrations/supabase/client';
+import VetsoftImportDialog from './VetsoftImportDialog';
+
 
 const CATEGORIES = ['Consulta', 'Cirurgia', 'Vacina', 'Exame', 'Internação', 'Estética', 'Emergência', 'Outros'];
 
@@ -30,11 +33,27 @@ const formatPrice = (p: Procedure) => {
 
 const ProceduresSettings: React.FC = () => {
   const { isAdmin } = useCompanySettings();
-  const { procedures, loading, createProcedure, updateProcedure, deleteProcedure, toggleActive } = useProcedures();
+  const { procedures, loading, createProcedure, updateProcedure, deleteProcedure, toggleActive, refetch } = useProcedures();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Procedure | null>(null);
   const [form, setForm] = useState<ProcedureInput>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [vetsoftConnected, setVetsoftConnected] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('nina_settings')
+        .select('vetsoft_connected_at, vetsoft_login_tenant')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      setVetsoftConnected(!!(data?.vetsoft_connected_at || data?.vetsoft_login_tenant));
+    })();
+  }, []);
+
+
 
   const openCreate = () => {
     setEditing(null);
@@ -103,11 +122,24 @@ const ProceduresSettings: React.FC = () => {
           </p>
         </div>
         {isAdmin && (
-          <Button onClick={openCreate} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Novo procedimento
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowImport(true)}
+              disabled={!vetsoftConnected}
+              title={vetsoftConnected ? 'Trazer serviços, vacinas e produtos do VetSoft' : 'Conecte o VetSoft em Configurações > Integrações para importar'}
+              className="gap-2 border border-slate-700 hover:bg-slate-800 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              Importar do VetSoft
+            </Button>
+            <Button onClick={openCreate} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Novo procedimento
+            </Button>
+          </div>
         )}
+
       </div>
 
       <div className="bg-slate-900/40 border border-slate-800 rounded-xl overflow-hidden">
@@ -137,7 +169,15 @@ const ProceduresSettings: React.FC = () => {
               {procedures.map((p) => (
                 <tr key={p.id} className="border-b border-slate-800/60 last:border-0 hover:bg-slate-800/20">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-white">{p.name}</div>
+                    <div className="font-medium text-white flex items-center gap-2">
+                      {p.name}
+                      {p.source === 'vetsoft' && (
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                          VetSoft
+                        </span>
+                      )}
+                    </div>
+
                     {p.description && (
                       <div className="text-xs text-slate-500 line-clamp-1 mt-0.5">{p.description}</div>
                     )}
@@ -358,7 +398,12 @@ const ProceduresSettings: React.FC = () => {
           </div>
         </div>
       )}
+
+      {showImport && (
+        <VetsoftImportDialog onClose={() => setShowImport(false)} onImported={refetch} />
+      )}
     </div>
+
   );
 };
 

@@ -14,11 +14,19 @@ export interface Procedure {
   price_max: number | null;
   duration_minutes: number | null;
   is_active: boolean;
+  vetsoft_item_id?: number | null;
+  vetsoft_item_type?: string | null;
+  vetsoft_synced_at?: string | null;
+  source?: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export type ProcedureInput = Omit<Procedure, 'id' | 'created_at' | 'updated_at'>;
+export type ProcedureInput = Omit<
+  Procedure,
+  'id' | 'created_at' | 'updated_at' | 'vetsoft_item_id' | 'vetsoft_item_type' | 'vetsoft_synced_at' | 'source'
+>;
+
 
 export function useProcedures(activeOnly = false) {
   const [procedures, setProcedures] = useState<Procedure[]>([]);
