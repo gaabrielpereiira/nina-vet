@@ -287,41 +287,74 @@ const ANIMAL_NAME_FIELDS = ['nom_animal', 'nome', 'name'];
 const SPECIES_FIELDS = ['nom_especie', 'especie', 'species'];
 const BREED_FIELDS = ['nom_raca', 'raca', 'breed'];
 
+// O tutor pode vir na lista `tutores` da ficha do animal, num objeto aninhado ou em campo direto.
+function extractTutorId(raw: any): number | null {
+  const lists = [raw?.tutores, raw?.clientes, raw?.tutors];
+  for (const list of lists) {
+    if (Array.isArray(list)) {
+      for (const t of list) {
+        const id = toNumber(pickField(t, CLIENT_ID_FIELDS));
+        if (id != null) return id;
+      }
+    }
+  }
+  for (const key of ['tutor', 'cliente', 'client']) {
+    const id = toNumber(pickField(raw?.[key], CLIENT_ID_FIELDS));
+    if (id != null) return id;
+  }
+  return toNumber(pickField(raw, ['cod_cliente', 'cod_client', 'cod_tutor']));
+}
+
 function normalizeAnimalRow(raw: any): VetsoftPet | null {
   const id = toNumber(pickField(raw, ANIMAL_ID_FIELDS));
   const name = pickField(raw, ANIMAL_NAME_FIELDS);
   if (id == null || !name) return null;
 
+  // Animais inativos/óbito não são importados.
+  if (raw?.is_ativo === false) return null;
   const situation = raw?.sit_registro;
   if (situation !== undefined && situation !== null && Number(situation) !== 1) return null;
 
-  const nested = (fields: string[], obj: any) => {
-    const v = pickField(obj, fields);
+  const breedObj = raw?.['raça'] ?? raw?.raca ?? raw?.breed ?? null;
+  const speciesObj = raw?.['espécie'] ?? raw?.especie ?? raw?.species ?? breedObj?.['espécie'] ?? breedObj?.especie ?? null;
+
+  const text = (v: any, fields: string[]): string | null => {
     if (!v) return null;
-    if (typeof v === 'object') return String(pickField(v, [...SPECIES_FIELDS, ...BREED_FIELDS, 'nome', 'name']) ?? '').trim() || null;
+    if (typeof v === 'object') return String(pickField(v, fields) ?? '').trim() || null;
     return String(v).trim() || null;
   };
 
+  const breed = text(breedObj, BREED_FIELDS) ?? text(pickField(raw, BREED_FIELDS), BREED_FIELDS);
+  const species = text(speciesObj, SPECIES_FIELDS) ?? text(pickField(raw, SPECIES_FIELDS), SPECIES_FIELDS);
+
   const sexRaw = String(pickField(raw, ['des_sexo', 'sexo', 'sex']) ?? '').trim().toUpperCase();
+  const sex = sexRaw.startsWith('M') ? 'M' : sexRaw.startsWith('F') ? 'F' : null;
   const birth = pickField(raw, ['dat_nascimento', 'data_nascimento', 'birth_date']);
 
   return {
     external_id: id,
-    client_external_id: toNumber(pickField(raw, CLIENT_ID_FIELDS)) ?? null,
+    client_external_id: extractTutorId(raw),
     name: String(name).trim(),
-    species: nested(SPECIES_FIELDS, raw),
-    breed: nested(BREED_FIELDS, raw),
-    sex: sexRaw === 'M' || sexRaw === 'F' ? sexRaw : null,
+    species,
+    breed,
+    sex,
     birth_date: birth ? String(birth).slice(0, 10) : null,
   };
 }
 
 export async function listPets(supabase: any): Promise<{ pets: VetsoftPet[]; sample: any }> {
   const raw = await fetchAllPages(supabase, '/animals');
-  const pets = raw.map(normalizeAnimalRow).filter((p): p is VetsoftPet => !!p);
-  console.log(`[vetsoft] pets: ${raw.length} brutos → ${pets.length} válidos`, raw[0] ? JSON.stringify(raw[0]).slice(0, 500) : '');
+  const byId = new Map<number, VetsoftPet>();
+  for (const row of raw) {
+    const pet = normalizeAnimalRow(row);
+    if (pet) byId.set(pet.external_id, pet);
+  }
+  const pets = [...byId.values()];
+  const withTutor = pets.filter((p) => p.client_external_id != null).length;
+  console.log(`[vetsoft] pets: ${raw.length} brutos → ${pets.length} válidos (${withTutor} com tutor)`);
   return { pets, sample: raw[0] ?? null };
 }
+
 
 
 // ── Taxonomia de animal (raça obrigatória pra criar animal; espécie/pelagem opcionais) ────
@@ -514,7 +547,7 @@ function normalizeItem(raw: any, endpointType: 'service' | 'product'): VetsoftCa
 
 async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
   const perPage = 100;
-  const maxPages = 10;
+  const maxPages = 60;
   const out: any[] = [];
   for (let page = 1; page <= maxPages; page++) {
     const sep = basePath.includes('?') ? '&' : '?';
