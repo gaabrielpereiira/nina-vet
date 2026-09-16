@@ -35,6 +35,22 @@ interface NinaSettings {
   audio_response_enabled: boolean;
 }
 
+// supabase.functions.invoke() só devolve um FunctionsHttpError genérico ("Edge Function
+// returned a non-2xx status code") quando a function responde com status != 2xx — a mensagem
+// real que a function tentou enviar fica no corpo da resposta, acessível via error.context.
+async function getFunctionErrorMessage(error: any, fallback: string): Promise<string> {
+  if (error?.context && typeof error.context.json === 'function') {
+    try {
+      const body = await error.context.clone().json();
+      if (body?.error) return body.error;
+      if (body?.message) return body.message;
+    } catch {
+      // corpo não era JSON ou já foi consumido — cai no fallback abaixo
+    }
+  }
+  return error?.message || fallback;
+}
+
 const VOICE_OPTIONS = [
   { id: '33B4UnXyTNbgLmdEDh5P', name: 'Keren - Young Brazilian Female', desc: 'Feminina, brasileira (Padrão)' },
   { id: '9BWtsMINqrJLrRacOk9x', name: 'Aria', desc: 'Feminina, natural' },
@@ -272,7 +288,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
       const { data, error } = await supabase.functions.invoke('zernio-connect', {
         body: { redirect_url: redirectUrl },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Falha ao iniciar conexão com a Zernio'));
       if (data?.error) throw new Error(data.error);
       if (!data?.authUrl) throw new Error('Zernio não retornou a URL de conexão');
 
@@ -343,7 +359,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     setVetsoftTesting(true);
     try {
       const { data, error } = await supabase.functions.invoke('vetsoft-connect', { body: {} });
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Falha ao conectar com o VetSoft'));
       if (data?.error) throw new Error(data.error);
 
       setVetsoftServiceTypes(data?.serviceTypes || []);
@@ -353,6 +369,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     } catch (error: any) {
       console.error('[ApiSettings] Erro ao conectar com o VetSoft:', error);
       toast.error(error?.message || 'Falha ao conectar com o VetSoft');
+      await loadSettings(); // recarrega pra exibir o vetsoft_last_error persistido pela function
     } finally {
       setVetsoftTesting(false);
     }
@@ -366,7 +383,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
       const { error } = await supabase.functions.invoke('vetsoft-save-defaults', {
         body: { service_type_id: option.id, service_type_name: option.name },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Falha ao salvar tipo de atendimento'));
       toast.success('Tipo de atendimento padrão salvo');
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao salvar tipo de atendimento');
@@ -381,7 +398,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
       const { error } = await supabase.functions.invoke('vetsoft-save-defaults', {
         body: { user_id: option.id, user_name: option.name },
       });
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Falha ao salvar usuário responsável'));
       toast.success('Usuário responsável padrão salvo');
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao salvar usuário responsável');
