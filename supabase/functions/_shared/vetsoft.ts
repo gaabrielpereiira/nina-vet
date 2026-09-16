@@ -16,6 +16,15 @@
 
 const VETSOFT_API = 'https://api.vetsoft.com.br';
 
+// O Cloudflare na frente da API do VetSoft devolve página de bloqueio (403 HTML) para clientes
+// sem cabeçalhos de navegador — por isso enviamos User-Agent/Accept explícitos.
+const BROWSER_HEADERS = {
+  'Accept': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Accept-Language': 'pt-BR,pt;q=0.9',
+};
+
+
 function pickField(obj: any, candidates: string[]): any {
   for (const key of candidates) {
     if (obj?.[key] !== undefined && obj?.[key] !== null) return obj[key];
