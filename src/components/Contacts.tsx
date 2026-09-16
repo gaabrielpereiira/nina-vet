@@ -6,6 +6,9 @@ import { api } from '../services/api';
 import { Contact } from '../types';
 import VetsoftClientsImportDialog from './contacts/VetsoftClientsImportDialog';
 import ContactDetailPanel from './contacts/ContactDetailPanel';
+import { useVetsoftClientImport } from '@/hooks/useVetsoftClientImport';
+import { toast } from 'sonner';
+
 
 const formatDate = (value?: string | null) => {
   if (!value) return '—';
