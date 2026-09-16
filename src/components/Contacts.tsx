@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Search, Filter, MoreHorizontal, UserPlus, MessageSquare, Loader2, Mail, Phone, Users, Download } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, UserPlus, MessageSquare, Loader2, Mail, Phone, Users, Download, PawPrint } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './Button';
 import { api } from '../services/api';
@@ -7,8 +7,15 @@ import { Contact } from '../types';
 import VetsoftClientsImportDialog from './contacts/VetsoftClientsImportDialog';
 import ContactDetailPanel from './contacts/ContactDetailPanel';
 
+const formatDate = (value?: string | null) => {
+  if (!value) return '—';
+  const d = new Date(value.length <= 10 ? `${value}T12:00:00` : value);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+};
+
 const Contacts: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showImport, setShowImport] = useState(false);
