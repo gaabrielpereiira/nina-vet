@@ -431,8 +431,7 @@ async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
   return out;
 }
 
-  return out;
-}
+
 
 
 // Busca o catálogo completo. Nunca lança: cada tipo relata seu próprio erro em `sources`.
