@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, AlignLeft, X, Loader2, LayoutGrid, List, Columns, Video, User, UserCircle, Bot, Pencil, Stethoscope } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, AlignLeft, X, Loader2, LayoutGrid, List, Columns, Video, User, UserCircle, Bot, Pencil, Stethoscope, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from './Button';
 import { Appointment, Contact } from '../types';
@@ -7,6 +7,8 @@ import { api } from '../services/api';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useProcedures } from '@/hooks/useProcedures';
+import { useVetsoftAgendaSync } from '@/hooks/useVetsoftAgendaSync';
+
 
 type ViewMode = 'month' | 'week' | 'day';
 
@@ -517,10 +519,21 @@ const Scheduling: React.FC = () => {
                 </button>
             </div>
 
+            <Button
+                variant="ghost"
+                className="border border-slate-700 hover:bg-slate-800"
+                onClick={handleSyncVetsoft}
+                disabled={syncing}
+            >
+                {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Sincronizar VetSoft
+            </Button>
+
             <Button onClick={() => { setSelectedDate(new Date().toISOString().split('T')[0]); setShowCreateModal(true); }}>
                 <Plus className="w-4 h-4 mr-2" />
                 Agendar
             </Button>
+
         </div>
       </div>
 
