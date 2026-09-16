@@ -421,7 +421,7 @@ async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
 
     // O VetSoft ignora `per_page` e devolve a lista inteira de uma vez: se veio mais do que
     // pedimos, não há paginação de verdade — parar aqui evita repetir a lista e ser bloqueado.
-    if (list.length >= perPage) break;
+    if (list.length > perPage) break;
 
     const lastPage = json?.meta?.last_page ?? json?.last_page;
     if (lastPage && page >= Number(lastPage)) break;

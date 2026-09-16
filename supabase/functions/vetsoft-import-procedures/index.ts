@@ -41,23 +41,8 @@ serve(async (req) => {
     if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
 
     const body = await req.json().catch(() => ({}));
-    const mode = body?.mode === 'apply' ? 'apply' : body?.mode === 'debug' ? 'debug' : 'preview';
+    const mode = body?.mode === 'apply' ? 'apply' : 'preview';
 
-    if (mode === 'debug') {
-      const variants = ['/services', '/services?per_page=100&page=1', '/services?page=1', '/service-types'];
-      const out: any[] = [];
-      for (const v of variants) {
-        try {
-          const res = await vetsoftFetch(supabase, v);
-          const text = await res.text();
-          out.push({ path: v, status: res.status, snippet: text.replace(/\s+/g, ' ').slice(0, 120) });
-        } catch (e: any) {
-          out.push({ path: v, error: e?.message || String(e) });
-        }
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-      return json({ ok: true, probes: out });
-    }
 
 
     if (mode === 'apply') {
