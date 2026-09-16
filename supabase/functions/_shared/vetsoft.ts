@@ -402,6 +402,10 @@ async function fetchAllPages(supabase: any, basePath: string): Promise<any[]> {
     const bodyText = await res.text();
     let json: any = {};
     try { json = bodyText ? JSON.parse(bodyText) : {}; } catch { /* resposta não-JSON */ }
+    if (!res.ok) {
+      console.warn(`[vetsoft] ${url} → ${res.status} cf-ray=${res.headers.get('cf-ray')} cf-mitigated=${res.headers.get('cf-mitigated')} body=${bodyText.replace(/\s+/g, ' ').slice(0, 1200)}`);
+    }
+
 
     if (!res.ok) {
       if (page === 1) {
