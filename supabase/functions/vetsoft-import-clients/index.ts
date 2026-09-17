@@ -9,6 +9,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getVetsoftAccessToken, listTutors, listPets, VetsoftPet } from "../_shared/vetsoft.ts";
+import { startSyncRun, finishSyncRun, isInternalCall } from "../_shared/sync-log.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,41 +28,103 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', ''),
-    );
-    if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
-    const userId = userData.user.id;
-
+    const internal = isInternalCall(req);
     const body = await req.json().catch(() => ({}));
-    const mode = body?.mode === 'apply' ? 'apply' : body?.mode === 'pets' ? 'pets' : 'preview';
+    let userId: string | null = null;
+
+    if (internal) {
+      userId = typeof body?.user_id === 'string' ? body.user_id : null;
+    } else {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
+      const { data: userData, error: userErr } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', ''),
+      );
+      if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
+      userId = userData.user.id;
+    }
+
+    const mode = body?.mode === 'apply'
+      ? 'apply'
+      : body?.mode === 'pets'
+        ? 'pets'
+        : body?.mode === 'sync'
+          ? 'sync'
+          : 'preview';
+    const triggeredBy = body?.triggered_by === 'manual' ? 'manual' : 'cron';
 
     if (mode === 'apply') {
       const tutors: IncomingTutor[] = Array.isArray(body?.tutors) ? body.tutors : [];
       if (tutors.length === 0) return json({ error: 'Nenhum tutor selecionado' }, 400);
-      return json(await applyTutors(supabase, tutors, userId));
+      return json(await applyTutors(supabase, tutors, userId!));
+    }
+
+    // Sincronização automática dos tutores: importa e atualiza todos, sem revisão manual.
+    if (mode === 'sync') {
+      const runId = await startSyncRun(supabase, 'clients', triggeredBy);
+      try {
+        await getVetsoftAccessToken(supabase);
+        const { tutors } = await listTutors(supabase);
+        const seen = new Set<number>();
+        const payload: IncomingTutor[] = [];
+        let withoutPhone = 0;
+        for (const t of tutors) {
+          if (t.external_id == null || seen.has(t.external_id)) continue;
+          seen.add(t.external_id);
+          if (!t.phone) {
+            withoutPhone++;
+            continue;
+          }
+          payload.push({ ...t, pets: [] });
+        }
+        const result = payload.length > 0
+          ? await applyTutors(supabase, payload, userId!)
+          : { ok: true, created: 0, updated: 0, pets_created: 0, errors: [] as string[] };
+        await finishSyncRun(
+          supabase,
+          runId,
+          result.errors.length > 0 ? 'failed' : 'success',
+          { created: result.created, updated: result.updated, skipped: withoutPhone, total: seen.size },
+          result.errors.join(' | ') || null,
+        );
+        return json({ ok: true, area: 'clients', total: seen.size, without_phone: withoutPhone, ...result });
+      } catch (e: any) {
+        const message = e?.message || String(e);
+        await finishSyncRun(supabase, runId, 'failed', {}, message);
+        return json({ error: message }, 400);
+      }
     }
 
     if (mode === 'pets') {
+      const runId = internal ? await startSyncRun(supabase, 'pets', triggeredBy) : null;
       try {
         await getVetsoftAccessToken(supabase);
-      } catch (loginErr: any) {
-        return json({ error: loginErr?.message || 'Falha ao conectar com o VetSoft' }, 400);
-      }
-      try {
-        return json(await syncPetsOnly(supabase));
+        const result = await syncPetsOnly(supabase);
+        await finishSyncRun(
+          supabase,
+          runId,
+          result.errors.length > 0 ? 'failed' : 'success',
+          {
+            created: result.created,
+            updated: result.updated,
+            skipped: result.without_tutor,
+            total: result.pets_total,
+          },
+          result.errors.join(' | ') || null,
+        );
+        return json(result);
       } catch (e: any) {
-        return json({ error: e?.message || 'Falha ao importar os pets do VetSoft' }, 400);
+        const message = e?.message || 'Falha ao importar os pets do VetSoft';
+        await finishSyncRun(supabase, runId, 'failed', {}, message);
+        return json({ error: message }, 400);
       }
     }
+
 
 
     try {

@@ -9,6 +9,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getVetsoftAccessToken, listCatalog } from "../_shared/vetsoft.ts";
+import { startSyncRun, finishSyncRun, isInternalCall } from "../_shared/sync-log.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,28 +28,61 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', ''),
-    );
-    if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
+    const internal = isInternalCall(req);
+    if (!internal) {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
+      const { data: userData, error: userErr } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', ''),
+      );
+      if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
+    }
 
     const body = await req.json().catch(() => ({}));
-    const mode = body?.mode === 'apply' ? 'apply' : 'preview';
-
-
+    const mode = body?.mode === 'apply' ? 'apply' : body?.mode === 'sync' ? 'sync' : 'preview';
 
     if (mode === 'apply') {
       const items: IncomingItem[] = Array.isArray(body?.items) ? body.items : [];
       if (items.length === 0) return json({ error: 'Nenhum item selecionado' }, 400);
       return json(await applyItems(supabase, items));
+    }
+
+    // Sincronização automática: lê o catálogo inteiro e aplica tudo, sem revisão manual.
+    if (mode === 'sync') {
+      const triggeredBy = body?.triggered_by === 'manual' ? 'manual' : 'cron';
+      const runId = await startSyncRun(supabase, 'procedures', triggeredBy);
+      try {
+        await getVetsoftAccessToken(supabase);
+        const { items } = await listCatalog(supabase);
+        const seenKeys = new Set<string>();
+        const unique: IncomingItem[] = [];
+        for (const item of items) {
+          const key = `${item.type}:${item.external_id}`;
+          if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+          unique.push(item as IncomingItem);
+        }
+        const result = unique.length > 0
+          ? await applyItems(supabase, unique)
+          : { ok: true, created: 0, updated: 0, errors: [] as string[] };
+        await finishSyncRun(
+          supabase,
+          runId,
+          result.errors.length > 0 ? 'failed' : 'success',
+          { created: result.created, updated: result.updated, total: unique.length },
+          result.errors.join(' | ') || null,
+        );
+        return json({ ok: true, area: 'procedures', total: unique.length, ...result });
+      } catch (e: any) {
+        const message = e?.message || String(e);
+        await finishSyncRun(supabase, runId, 'failed', {}, message);
+        return json({ error: message }, 400);
+      }
     }
 
     try {

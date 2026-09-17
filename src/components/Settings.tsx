@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import AgentSettings, { AgentSettingsRef } from './settings/AgentSettings';
 import ApiSettings, { ApiSettingsRef } from './settings/ApiSettings';
 import ProceduresSettings from './settings/ProceduresSettings';
+import VetsoftSyncStatus from './settings/VetsoftSyncStatus';
 import SystemRoadmap from './SystemRoadmap';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { Button } from './Button';
@@ -153,7 +154,8 @@ const Settings: React.FC = () => {
           <ApiSettings ref={apiRef} />
         </TabsContent>
 
-        <TabsContent value="procedures">
+        <TabsContent value="procedures" className="space-y-6">
+          <VetsoftSyncStatus />
           <ProceduresSettings />
         </TabsContent>
 
