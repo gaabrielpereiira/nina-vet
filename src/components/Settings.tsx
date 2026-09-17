@@ -153,7 +153,8 @@ const Settings: React.FC = () => {
           <ApiSettings ref={apiRef} />
         </TabsContent>
 
-        <TabsContent value="procedures">
+        <TabsContent value="procedures" className="space-y-6">
+          <VetsoftSyncStatus />
           <ProceduresSettings />
         </TabsContent>
 
