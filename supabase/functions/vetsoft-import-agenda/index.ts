@@ -48,21 +48,30 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', ''),
-    );
-    if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
-    const userId = userData.user.id;
-
+    const internal = isInternalCall(req);
     const body = await req.json().catch(() => ({}));
+    let userId: string | null = null;
+
+    if (internal) {
+      userId = typeof body?.user_id === 'string' ? body.user_id : null;
+    } else {
+      const authHeader = req.headers.get('Authorization');
+      if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
+      const { data: userData, error: userErr } = await supabase.auth.getUser(
+        authHeader.replace('Bearer ', ''),
+      );
+      if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
+      userId = userData.user.id;
+    }
+
+    const triggeredBy = body?.triggered_by === 'manual' ? 'manual' : 'cron';
+    const runId = internal ? await startSyncRun(supabase, 'agenda', triggeredBy) : null;
+
     const today = new Date();
     const from = typeof body?.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.from)
       ? body.from
@@ -74,7 +83,9 @@ serve(async (req) => {
     try {
       await getVetsoftAccessToken(supabase);
     } catch (loginErr: any) {
-      return json({ error: loginErr?.message || 'Falha ao conectar com o VetSoft' }, 400);
+      const message = loginErr?.message || 'Falha ao conectar com o VetSoft';
+      await finishSyncRun(supabase, runId, 'failed', {}, message);
+      return json({ error: message }, 400);
     }
 
     const { data: settings } = await supabase
