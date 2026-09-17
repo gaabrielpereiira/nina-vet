@@ -1472,6 +1472,54 @@ export type Database = {
         }
         Relationships: []
       }
+      vetsoft_sync_runs: {
+        Row: {
+          area: string
+          created_at: string
+          created_count: number
+          error: string | null
+          finished_at: string | null
+          id: string
+          skipped_count: number
+          started_at: string
+          status: string
+          total_count: number
+          triggered_by: string
+          updated_at: string
+          updated_count: number
+        }
+        Insert: {
+          area: string
+          created_at?: string
+          created_count?: number
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          skipped_count?: number
+          started_at?: string
+          status?: string
+          total_count?: number
+          triggered_by?: string
+          updated_at?: string
+          updated_count?: number
+        }
+        Update: {
+          area?: string
+          created_at?: string
+          created_count?: number
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          skipped_count?: number
+          started_at?: string
+          status?: string
+          total_count?: number
+          triggered_by?: string
+          updated_at?: string
+          updated_count?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       contacts_with_stats: {
