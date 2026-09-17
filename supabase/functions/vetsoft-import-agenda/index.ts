@@ -99,7 +99,9 @@ serve(async (req) => {
     try {
       ({ events } = await listAgendaEvents(supabase, from, to));
     } catch (e: any) {
-      return json({ error: e?.message || 'Falha ao ler a agenda do VetSoft' }, 400);
+      const message = e?.message || 'Falha ao ler a agenda do VetSoft';
+      await finishSyncRun(supabase, runId, 'failed', {}, message);
+      return json({ error: message }, 400);
     }
 
     // Índices para vincular tutor e pet já importados.
