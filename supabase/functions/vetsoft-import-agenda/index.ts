@@ -172,6 +172,14 @@ serve(async (req) => {
       else updated += batch.length;
     }
 
+    await finishSyncRun(
+      supabase,
+      runId,
+      errors.length > 0 ? 'failed' : 'success',
+      { created, updated, skipped: withoutTutor, total: events.length },
+      errors.join(' | ') || null,
+    );
+
     return json({
       ok: true,
       from,
