@@ -36,6 +36,18 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const triggeredBy = body?.triggered_by === 'manual' ? 'manual' : 'cron';
 
+    // Proteção simples contra chamadas repetidas: no máximo uma rodada a cada 5 minutos.
+    const { data: recent } = await supabase
+      .from('vetsoft_sync_runs')
+      .select('started_at')
+      .gte('started_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
+      .limit(1)
+      .maybeSingle();
+    if (recent) {
+      return json({ ok: true, skipped: true, reason: 'Uma sincronização foi iniciada há poucos minutos' });
+    }
+
+
     // Dono dos registros gravados (appointments/contacts precisam de user_id).
     let userId: string | null = null;
     const { data: admin } = await supabase
