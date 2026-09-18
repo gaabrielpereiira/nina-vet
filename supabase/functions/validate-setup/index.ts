@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getZernioApiKey } from "../_shared/zernio.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -105,7 +106,7 @@ serve(async (req) => {
 
       // Check WhatsApp (via Zernio)
       if (settings.zernio_account_id && !settings.zernio_disconnected_at) {
-        const zernioApiKey = Deno.env.get('ZERNIO_API_KEY');
+        const zernioApiKey = await getZernioApiKey(supabase);
         try {
           const waResponse = zernioApiKey
             ? await fetch(`https://zernio.com/api/v1/accounts/${settings.zernio_account_id}`, {

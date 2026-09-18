@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { getZernioApiKey } from "../_shared/zernio.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -117,7 +118,7 @@ serve(async (req) => {
       );
     }
 
-    const ZERNIO_API_KEY = Deno.env.get('ZERNIO_API_KEY');
+    const ZERNIO_API_KEY = await getZernioApiKey(supabase);
     if (!settings.zernio_account_id || !ZERNIO_API_KEY) {
       console.error('❌ WhatsApp (Zernio) not configured');
       return new Response(
