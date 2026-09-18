@@ -15,6 +15,7 @@ interface NinaSettings {
   zernio_connected_at: string | null;
   zernio_disconnected_at: string | null;
   zernio_disconnect_reason: string | null;
+  zernio_api_key: string | null;
   vetsoft_connected_at: string | null;
   vetsoft_last_error: string | null;
   vetsoft_login_tenant: string | null;
@@ -96,6 +97,8 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
   const [vetsoftTesting, setVetsoftTesting] = useState(false);
   const [vetsoftSavingCredentials, setVetsoftSavingCredentials] = useState(false);
   const [showVetsoftPassword, setShowVetsoftPassword] = useState(false);
+  const [showZernioKey, setShowZernioKey] = useState(false);
+  const [zernioSavingKey, setZernioSavingKey] = useState(false);
   const [vetsoftServiceTypes, setVetsoftServiceTypes] = useState<{ id: number; name: string }[]>([]);
   const [vetsoftTenantUsers, setVetsoftTenantUsers] = useState<{ id: number; name: string }[]>([]);
   const [showElevenLabsKey, setShowElevenLabsKey] = useState(false);
@@ -135,6 +138,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
     zernio_connected_at: null,
     zernio_disconnected_at: null,
     zernio_disconnect_reason: null,
+    zernio_api_key: null,
     vetsoft_connected_at: null,
     vetsoft_last_error: null,
     vetsoft_login_tenant: null,
@@ -222,6 +226,7 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
         zernio_connected_at: data.zernio_connected_at,
         zernio_disconnected_at: data.zernio_disconnected_at,
         zernio_disconnect_reason: data.zernio_disconnect_reason,
+        zernio_api_key: data.zernio_api_key,
         vetsoft_connected_at: data.vetsoft_connected_at,
         vetsoft_last_error: data.vetsoft_last_error,
         vetsoft_login_tenant: data.vetsoft_login_tenant,
@@ -278,6 +283,26 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
       toast.error('Erro ao salvar configurações');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveZernioKey = async () => {
+    if (!settings.id) return;
+    setZernioSavingKey(true);
+    try {
+      const { error } = await supabase
+        .from('nina_settings')
+        .update({
+          zernio_api_key: settings.zernio_api_key?.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', settings.id);
+      if (error) throw error;
+      toast.success('API Key da Zernio salva!');
+    } catch (error: any) {
+      toast.error(error?.message || 'Falha ao salvar a API Key da Zernio');
+    } finally {
+      setZernioSavingKey(false);
     }
   };
 
