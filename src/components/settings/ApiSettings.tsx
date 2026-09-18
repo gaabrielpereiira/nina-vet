@@ -669,6 +669,35 @@ const ApiSettings = forwardRef<ApiSettingsRef>((props, ref) => {
           WhatsApp Business no celular normalmente, e a Nina responde em paralelo pela Zernio.
         </p>
 
+        <div className="mb-4">
+          <label className="text-xs font-medium text-slate-400 mb-1.5 block">API Key da Zernio</label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type={showZernioKey ? 'text' : 'password'}
+                value={settings.zernio_api_key || ''}
+                onChange={(e) => setSettings({ ...settings, zernio_api_key: e.target.value })}
+                placeholder="Cole aqui sua API Key da Zernio"
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 pr-10 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowZernioKey(!showZernioKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                {showZernioKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <Button variant="ghost" onClick={saveZernioKey} disabled={zernioSavingKey || !settings.id}>
+              {zernioSavingKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+              Salvar
+            </Button>
+          </div>
+          <p className="text-xs text-slate-500 mt-1.5">
+            Encontre a chave no painel da Zernio, em Configurações → API (API Keys).
+          </p>
+        </div>
+
         {whatsappConfigured ? (
           <div className="flex items-center justify-between p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
             <div>
