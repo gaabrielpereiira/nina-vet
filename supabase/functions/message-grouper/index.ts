@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getZernioApiKey } from "../_shared/zernio.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -283,7 +284,11 @@ async function combineAndTranscribeMessages(
 
 // Download media via Zernio (GET /v1/whatsapp/media/{mediaId}, autenticado com a API key da conta)
 async function downloadWhatsAppMedia(mediaUrl: string): Promise<ArrayBuffer | null> {
-  const zernioApiKey = Deno.env.get('ZERNIO_API_KEY');
+  let zernioApiKey = Deno.env.get('ZERNIO_API_KEY');
+  if (!zernioApiKey) {
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    zernioApiKey = await getZernioApiKey(supabase);
+  }
   if (!zernioApiKey) {
     console.error('[MessageGrouper] ZERNIO_API_KEY not configured');
     return null;
