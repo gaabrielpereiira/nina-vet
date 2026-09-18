@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getZernioApiKey } from "../_shared/zernio.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -212,7 +213,9 @@ serve(async (req) => {
 async function sendMessage(supabase: any, settings: any, queueItem: any) {
   console.log(`[Sender] Sending message: ${queueItem.id}`);
 
-  if (!ZERNIO_API_KEY) {
+  // Prioridade: secret de ambiente -> chave salva em Configurações > APIs.
+  const apiKey = ZERNIO_API_KEY || (await getZernioApiKey(supabase)) || '';
+  if (!apiKey) {
     throw new Error('ZERNIO_API_KEY não configurada');
   }
 
@@ -238,7 +241,7 @@ async function sendMessage(supabase: any, settings: any, queueItem: any) {
     : (['image', 'audio', 'video'].includes(queueItem.message_type) ? queueItem.message_type : undefined);
 
   const zernioHeaders = {
-    'Authorization': `Bearer ${ZERNIO_API_KEY}`,
+    'Authorization': `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
   };
 

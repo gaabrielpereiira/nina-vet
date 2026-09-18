@@ -11,6 +11,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getZernioApiKey } from "../_shared/zernio.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,10 +34,14 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    const ZERNIO_API_KEY = Deno.env.get('ZERNIO_API_KEY');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    // Prioridade: secret de ambiente -> chave salva em Configurações > APIs.
+    const ZERNIO_API_KEY = await getZernioApiKey(supabase);
     const ZERNIO_WEBHOOK_SECRET = Deno.env.get('ZERNIO_WEBHOOK_SECRET');
     if (!ZERNIO_API_KEY) {
-      return json({ error: 'ZERNIO_API_KEY não configurada nos secrets do Supabase.' }, 400);
+      return json({ error: 'API Key da Zernio não configurada. Preencha em Configurações > APIs.' }, 400);
     }
     if (!ZERNIO_WEBHOOK_SECRET) {
       return json({ error: 'ZERNIO_WEBHOOK_SECRET não configurada nos secrets do Supabase.' }, 400);
@@ -44,9 +49,6 @@ serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     const { data: userData, error: userErr } = await supabase.auth.getUser(
       authHeader.replace('Bearer ', ''),
