@@ -1171,7 +1171,36 @@ const ChatInterface: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Lightbox de imagem */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img src={lightboxUrl} alt="Imagem" className="max-h-full max-w-full object-contain rounded-lg" />
+          <div className="absolute top-4 right-4 flex gap-2">
+            <a
+              href={lightboxUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-2 rounded-full bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+              title="Baixar"
+            >
+              <Download className="w-5 h-5" />
+            </a>
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="p-2 rounded-full bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 };
 
