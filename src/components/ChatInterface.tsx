@@ -328,7 +328,7 @@ const ChatInterface: React.FC = () => {
       <div className="w-80 lg:w-96 border-r border-slate-800 flex flex-col bg-slate-900/50 backdrop-blur-md z-20 flex-shrink-0">
         {/* Search Header */}
         <div className="p-4 border-b border-slate-800/50">
-          <h2 className="text-lg font-bold text-white mb-4 px-1">Chats Ativos</h2>
+          <h2 className="text-lg font-bold text-white mb-4 px-1">Conversas</h2>
           <div className="relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
             <input 
@@ -338,6 +338,26 @@ const ChatInterface: React.FC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 bg-slate-950/50 border border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 outline-none text-slate-200 placeholder:text-slate-600 transition-all"
             />
+          </div>
+          <div className="flex gap-1.5 mt-3 flex-wrap">
+            {([
+              { key: 'all', label: 'Todas' },
+              { key: 'nina', label: `Com a ${sdrName}` },
+              { key: 'human', label: 'Com humano' },
+              { key: 'archived', label: 'Arquivadas' },
+            ] as { key: ChatFilter; label: string }[]).map(f => (
+              <button
+                key={f.key}
+                onClick={() => setChatFilter(f.key)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                  chatFilter === f.key
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                    : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:text-slate-200 hover:border-slate-600'
+                }`}
+              >
+                {f.label} · {filterCounts[f.key]}
+              </button>
+            ))}
           </div>
         </div>
 
