@@ -34,7 +34,32 @@ const ChatInterface: React.FC = () => {
   const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const [audioProgress, setAudioProgress] = useState<Record<string, number>>({});
   const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
-  
+
+  // Anexos / gravação / emoji
+  type MediaKind = 'image' | 'audio' | 'video' | 'document';
+  const [attachment, setAttachment] = useState<{ file: File; previewUrl: string; kind: MediaKind } | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [isEmojiOpen, setIsEmojiOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
+  const cancelRecordingRef = useRef(false);
+
+  const MAX_FILE_MB = 45;
+  const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','🤗','🤔','😅','😉','🙌','👍','👏','🙏','💪','❤️','🧡','💚','💙','✨','🎉','🔥','⭐','✅','❌','⏰','📅','📍','📞','💬','💰','🐶','🐱','🐾','🩺','💊','🚑','🎂','☀️'];
+
+  const kindFromMime = (mime: string): MediaKind => {
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('audio/')) return 'audio';
+    if (mime.startsWith('video/')) return 'video';
+    return 'document';
+  };
+
   const activeChat = conversations.find(c => c.id === selectedChatId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -45,6 +70,98 @@ const ChatInterface: React.FC = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const pickAttachment = (file: File) => {
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      toast.error(`Arquivo muito grande. Limite de ${MAX_FILE_MB} MB.`);
+      return;
+    }
+    setAttachment({ file, previewUrl: URL.createObjectURL(file), kind: kindFromMime(file.type || '') });
+  };
+
+  const clearAttachment = () => {
+    if (attachment) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const el = textareaRef.current;
+    if (!el) {
+      setInputText(prev => prev + emoji);
+      return;
+    }
+    const start = el.selectionStart ?? inputText.length;
+    const end = el.selectionEnd ?? inputText.length;
+    const next = inputText.slice(0, start) + emoji + inputText.slice(end);
+    setInputText(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+
+  const startRecording = async () => {
+    if (!activeChat) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeCandidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+      const mimeType = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordedChunksRef.current = [];
+      cancelRecordingRef.current = false;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+        setIsRecording(false);
+        setRecordingSeconds(0);
+        if (cancelRecordingRef.current) return;
+        const type = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(recordedChunksRef.current, { type });
+        const ext = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+        const file = new File([blob], `audio-${Date.now()}.${ext}`, { type });
+        await sendWithMedia(file, '');
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = window.setInterval(() => setRecordingSeconds(s => s + 1), 1000);
+    } catch (err) {
+      console.error('Erro ao acessar microfone:', err);
+      toast.error('Não foi possível acessar o microfone');
+    }
+  };
+
+  const stopRecording = (cancel = false) => {
+    cancelRecordingRef.current = cancel;
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  };
+
+  const sendWithMedia = async (file: File, caption: string) => {
+    if (!activeChat) return;
+    setIsSending(true);
+    try {
+      const url = await api.uploadChatMedia(activeChat.id, file, file.name);
+      await sendMessage(activeChat.id, caption, {
+        url,
+        type: kindFromMime(file.type || ''),
+        mimeType: file.type || undefined,
+        fileName: file.name,
+      });
+    } catch (err) {
+      console.error('Erro ao enviar anexo:', err);
+      toast.error('Erro ao enviar o arquivo');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
 
   // Load tag definitions and team members
   useEffect(() => {
