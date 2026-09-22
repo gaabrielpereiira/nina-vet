@@ -267,13 +267,23 @@ const ChatInterface: React.FC = () => {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!inputText.trim() || !activeChat) return;
+    if (!activeChat || isSending) return;
 
     const content = inputText.trim();
+
+    if (attachment) {
+      const file = attachment.file;
+      clearAttachment();
+      setInputText('');
+      await sendWithMedia(file, content);
+      return;
+    }
+
+    if (!content) return;
     setInputText('');
-    
     await sendMessage(activeChat.id, content);
   };
+
 
   const handleStatusChange = async (status: ConversationStatus) => {
     if (!activeChat) return;
