@@ -794,6 +794,7 @@ export type Database = {
           whatsapp_phone_number_id: string | null
           whatsapp_verify_token: string | null
           zernio_account_id: string | null
+          zernio_api_key: string | null
           zernio_connected_at: string | null
           zernio_disconnect_reason: string | null
           zernio_disconnected_at: string | null
@@ -851,6 +852,7 @@ export type Database = {
           whatsapp_phone_number_id?: string | null
           whatsapp_verify_token?: string | null
           zernio_account_id?: string | null
+          zernio_api_key?: string | null
           zernio_connected_at?: string | null
           zernio_disconnect_reason?: string | null
           zernio_disconnected_at?: string | null
@@ -908,6 +910,7 @@ export type Database = {
           whatsapp_phone_number_id?: string | null
           whatsapp_verify_token?: string | null
           zernio_account_id?: string | null
+          zernio_api_key?: string | null
           zernio_connected_at?: string | null
           zernio_disconnect_reason?: string | null
           zernio_disconnected_at?: string | null
