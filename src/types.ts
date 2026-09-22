@@ -255,6 +255,8 @@ export interface DBConversation {
   ai_paused?: boolean;
   ai_paused_at?: string | null;
   ai_paused_reason?: string | null;
+  archived_at?: string | null;
+  archived_by?: string | null;
   // Joined data
   contact?: DBContact;
   messages?: DBMessage[];
@@ -302,6 +304,7 @@ export interface UIConversation {
   notes: string | null;
   aiPaused: boolean;
   aiPausedReason: string | null;
+  archivedAt: string | null;
 }
 
 export interface UIMessage {
@@ -350,7 +353,8 @@ export function transformDBToUIConversation(
     clientMemory: conv.contact?.client_memory || getDefaultClientMemory(),
     notes: conv.contact?.notes || null,
     aiPaused: conv.ai_paused ?? false,
-    aiPausedReason: conv.ai_paused_reason ?? null
+    aiPausedReason: conv.ai_paused_reason ?? null,
+    archivedAt: conv.archived_at ?? null
   };
 }
 
