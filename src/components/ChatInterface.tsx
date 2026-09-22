@@ -415,8 +415,12 @@ const ChatInterface: React.FC = () => {
         }
       };
 
+      const transcript = msg.transcription || (msg.content && !msg.content.startsWith('[') ? msg.content : null);
+
       return (
-        <div className="flex items-center gap-3 min-w-[220px] py-1">
+        <div className="py-1">
+        <div className="flex items-center gap-3 min-w-[220px]">
+
           {/* Hidden audio element */}
           {msg.mediaUrl && (
             <audio
