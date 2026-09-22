@@ -376,20 +376,42 @@ async function handleMessageSent(supabase: any, payload: any) {
   if (!conversation) return;
 
   const attachment = message.attachments?.[0];
-  const { content, type } = mapContent(message.text, attachment, true);
+  const { content, type, mediaType, isSticker } = mapContent(message.text, attachment, true);
+  const attachmentFileName = attachment?.payload?.filename || attachment?.filename || null;
 
-  const { error: echoMsgErr } = await supabase.from('messages').insert({
-    conversation_id: conversation.id,
-    whatsapp_message_id: message.platformMessageId,
-    content,
-    type,
-    from_type: 'human',
-    status: 'sent',
-    sent_at: message.sentAt || new Date().toISOString(),
-    metadata: { source: 'whatsapp_app_echo' },
-  });
+  const { data: echoMsg, error: echoMsgErr } = await supabase
+    .from('messages')
+    .insert({
+      conversation_id: conversation.id,
+      whatsapp_message_id: message.platformMessageId,
+      content,
+      type,
+      from_type: 'human',
+      status: 'sent',
+      media_type: mediaType,
+      sent_at: message.sentAt || new Date().toISOString(),
+      metadata: {
+        source: 'whatsapp_app_echo',
+        source_media_url: attachment?.url || null,
+        is_sticker: isSticker,
+        file_name: attachmentFileName,
+      },
+    })
+    .select()
+    .single();
   if (echoMsgErr && echoMsgErr.code !== '23505') {
     console.error('[zernio-webhook] Erro ao salvar echo:', echoMsgErr);
+  }
+
+  if (echoMsg && attachment?.url) {
+    EdgeRuntime.waitUntil(
+      persistIncomingMedia(supabase, {
+        mediaUrl: attachment.url,
+        conversationId: conversation.id,
+        messageId: echoMsg.id,
+        fileName: attachmentFileName,
+      }).catch((err) => console.error('[zernio-webhook] Erro ao guardar mídia do echo:', err)),
+    );
   }
 
   await supabase
@@ -408,17 +430,22 @@ async function handleMessageSent(supabase: any, payload: any) {
 
 function mapContent(text: string | null | undefined, attachment: any, isEcho = false) {
   if (!attachment) {
-    return { content: text || '', type: 'text', mediaType: null };
+    return { content: text || '', type: 'text', mediaType: null, isSticker: false };
   }
   const labels: Record<string, string> = isEcho
     ? { image: '[imagem enviada]', audio: '[áudio enviado]', video: '[vídeo enviado]', file: '[documento enviado]', sticker: '[figurinha enviada]' }
     : { image: '[imagem recebida]', audio: '[áudio - processando transcrição...]', video: '[vídeo recebido]', file: '[documento recebido]', sticker: '[figurinha recebida]' };
 
-  const type = attachment.type === 'file' ? 'document' : attachment.type;
+  const isSticker = attachment.type === 'sticker';
+  // O banco aceita apenas text/audio/image/document/video — figurinha entra como imagem.
+  const type = attachment.type === 'file'
+    ? 'document'
+    : (isSticker ? 'image' : attachment.type);
   const content = attachment.type === 'image' ? (text || labels.image) : (text || labels[attachment.type] || `[${attachment.type}]`);
   const mediaType = ['image', 'audio', 'video', 'document'].includes(type) ? type : null;
-  return { content, type, mediaType };
+  return { content, type, mediaType, isSticker };
 }
+
 
 function normalizePhone(phoneNumber: string | null | undefined): string | null {
   if (!phoneNumber) return null;
