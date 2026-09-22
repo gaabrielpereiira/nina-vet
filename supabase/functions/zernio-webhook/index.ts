@@ -238,7 +238,8 @@ async function handleMessageReceived(supabase: any, supabaseUrl: string, supabas
 
   // 3. Conteúdo / tipo
   const attachment = message.attachments?.[0];
-  const { content, type, mediaType } = mapContent(message.text, attachment);
+  const { content, type, mediaType, isSticker } = mapContent(message.text, attachment);
+  const attachmentFileName = attachment?.payload?.filename || attachment?.filename || null;
 
   // 4. Mensagem (cria imediatamente, igual ao pipeline antigo)
   const { data: dbMessage, error: msgError } = await supabase
@@ -254,7 +255,9 @@ async function handleMessageReceived(supabase: any, supabaseUrl: string, supabas
       sent_at: message.sentAt || new Date().toISOString(),
       metadata: {
         original_type: attachment?.type || 'text',
-        media_url: attachment?.url || null,
+        source_media_url: attachment?.url || null,
+        is_sticker: isSticker,
+        file_name: attachmentFileName,
       },
     })
     .select()
@@ -269,10 +272,23 @@ async function handleMessageReceived(supabase: any, supabaseUrl: string, supabas
     return;
   }
 
+  // 4b. Guarda a mídia no storage para o chat conseguir exibir/tocar
+  if (attachment?.url) {
+    EdgeRuntime.waitUntil(
+      persistIncomingMedia(supabase, {
+        mediaUrl: attachment.url,
+        conversationId: conversation.id,
+        messageId: dbMessage.id,
+        fileName: attachmentFileName,
+      }).catch((err) => console.error('[zernio-webhook] Erro ao guardar mídia:', err)),
+    );
+  }
+
   await supabase
     .from('conversations')
     .update({ last_message_at: new Date().toISOString() })
     .eq('id', conversation.id);
+
 
   // 5. Fila de agrupamento — mantém o mesmo formato "estilo Meta" que o message-grouper já entende
   const zernioAccountId = accountCtx?.accountId || accountCtx?.id;
