@@ -498,6 +498,15 @@ const ChatInterface: React.FC = () => {
                 >
                   <Pause className="w-5 h-5" />
                 </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className={`text-slate-400 hover:text-white ${activeChat.archivedAt ? 'bg-slate-700/50 text-cyan-400' : ''}`}
+                  onClick={() => activeChat.archivedAt ? unarchiveConversation(activeChat.id) : archiveConversation(activeChat.id)}
+                  title={activeChat.archivedAt ? 'Restaurar conversa (Nina volta a responder)' : 'Arquivar conversa (pausa a Nina)'}
+                >
+                  {activeChat.archivedAt ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
+                </Button>
                 <div className="h-6 w-px bg-slate-800 mx-1"></div>
                 <Button 
                   variant="ghost" 
