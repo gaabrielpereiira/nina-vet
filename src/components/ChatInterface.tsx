@@ -332,20 +332,68 @@ const ChatInterface: React.FC = () => {
 
   const renderMessageContent = (msg: UIMessage) => {
     if (msg.type === MessageType.IMAGE) {
+      const src = msg.mediaUrl || msg.content;
+      const hasCaption = msg.content && msg.content !== src && !msg.content.startsWith('[');
+
+      if (msg.isSticker) {
+        return (
+          <div className="mb-1">
+            <img src={src} alt="Figurinha" className="w-28 h-28 object-contain" loading="lazy" />
+          </div>
+        );
+      }
+
       return (
         <div className="mb-1 group relative">
           <img 
-            src={msg.mediaUrl || msg.content} 
+            src={src} 
             alt="Anexo" 
-            className="rounded-lg max-w-full h-auto max-h-72 object-cover border border-slate-700/50 shadow-lg"
+            onClick={() => msg.mediaUrl && setLightboxUrl(msg.mediaUrl)}
+            className="rounded-lg max-w-full h-auto max-h-72 object-cover border border-slate-700/50 shadow-lg cursor-zoom-in"
             loading="lazy"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://placehold.co/300x200/1e293b/cbd5e1?text=Erro+Imagem';
             }}
           />
+          {hasCaption && <p className="mt-1 leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
         </div>
       );
     }
+
+    if (msg.type === MessageType.VIDEO) {
+      const hasCaption = msg.content && !msg.content.startsWith('[');
+      return (
+        <div className="mb-1">
+          {msg.mediaUrl ? (
+            <video src={msg.mediaUrl} controls className="rounded-lg max-w-full max-h-72 border border-slate-700/50" />
+          ) : (
+            <p className="text-xs opacity-70">Vídeo indisponível</p>
+          )}
+          {hasCaption && <p className="mt-1 leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
+        </div>
+      );
+    }
+
+    if (msg.type === MessageType.DOCUMENT) {
+      return (
+        <a
+          href={msg.mediaUrl || '#'}
+          target="_blank"
+          rel="noreferrer"
+          className={`flex items-center gap-3 rounded-lg px-3 py-2 min-w-[200px] transition-colors ${
+            msg.direction === MessageDirection.OUTGOING ? 'bg-white/15 hover:bg-white/25' : 'bg-slate-800/70 hover:bg-slate-800'
+          } ${msg.mediaUrl ? '' : 'pointer-events-none opacity-60'}`}
+        >
+          <FileText className="w-6 h-6 flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm truncate">{msg.fileName || 'Documento'}</p>
+            <span className="text-[10px] opacity-70">{msg.mediaUrl ? 'Clique para baixar' : 'Indisponível'}</span>
+          </div>
+          <Download className="w-4 h-4 ml-auto flex-shrink-0 opacity-80" />
+        </a>
+      );
+    }
+
 
     if (msg.type === MessageType.AUDIO) {
       const isPlaying = playingAudioId === msg.id;
