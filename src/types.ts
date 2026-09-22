@@ -319,8 +319,13 @@ export interface UIMessage {
   status: 'sent' | 'delivered' | 'read';
   fromType: MessageFromType;
   mediaUrl: string | null;
+  mediaType: string | null;
+  fileName: string | null;
+  isSticker: boolean;
+  transcription: string | null;
   whatsappMessageId: string | null;
 }
+
 
 // ============= Utility Functions =============
 export function transformDBToUIConversation(
