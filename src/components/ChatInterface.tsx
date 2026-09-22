@@ -483,8 +483,17 @@ const ChatInterface: React.FC = () => {
             </span>
           </div>
         </div>
+        {transcript && (
+          <p className={`mt-1.5 text-xs italic leading-relaxed whitespace-pre-wrap ${
+            msg.direction === MessageDirection.OUTGOING ? 'text-cyan-50/90' : 'text-slate-400'
+          }`}>
+            “{transcript}”
+          </p>
+        )}
+        </div>
       );
     }
+
 
     return <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>;
   };
