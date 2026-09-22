@@ -366,15 +366,15 @@ const ChatInterface: React.FC = () => {
           {filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-500 p-8 text-center">
               <MessageSquare className="w-12 h-12 mb-4 opacity-50" />
-              <p className="text-sm">Nenhuma conversa encontrada</p>
-              <p className="text-xs mt-1 opacity-70">As conversas aparecerão aqui quando receberem mensagens</p>
+              <p className="text-sm">{chatFilter === 'archived' ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}</p>
+              <p className="text-xs mt-1 opacity-70">{chatFilter === 'archived' ? 'Arquive conversas finalizadas para organizar sua lista' : 'As conversas aparecerão aqui quando receberem mensagens'}</p>
             </div>
           ) : (
             filteredConversations.map((chat) => (
               <div 
                 key={chat.id}
                 onClick={() => setSelectedChatId(chat.id)}
-                className={`flex items-center p-4 cursor-pointer transition-all duration-200 border-b border-slate-800/30 hover:bg-slate-800/50 ${
+                className={`group relative flex items-center p-4 cursor-pointer transition-all duration-200 border-b border-slate-800/30 hover:bg-slate-800/50 ${
                   selectedChatId === chat.id 
                     ? 'bg-slate-800/80 border-l-2 border-l-cyan-500' 
                     : 'border-l-2 border-l-transparent'
@@ -400,7 +400,17 @@ const ChatInterface: React.FC = () => {
                     <h3 className={`text-sm font-semibold truncate ${selectedChatId === chat.id ? 'text-white' : 'text-slate-300'}`}>
                       {chat.contactName}
                     </h3>
-                    <span className="text-[10px] text-slate-500 font-medium">{chat.lastMessageTime}</span>
+                    <span className="text-[10px] text-slate-500 font-medium group-hover:opacity-0 transition-opacity">{chat.lastMessageTime}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        chat.archivedAt ? unarchiveConversation(chat.id) : archiveConversation(chat.id);
+                      }}
+                      title={chat.archivedAt ? 'Restaurar conversa' : 'Arquivar conversa'}
+                      className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-slate-700/70 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {chat.archivedAt ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
                   <p className="text-xs text-slate-500 truncate">
                     {chat.messages[chat.messages.length - 1]?.type === MessageType.IMAGE ? '📷 Imagem' : 
@@ -410,6 +420,12 @@ const ChatInterface: React.FC = () => {
                   
                   <div className="flex items-center mt-2 gap-1.5">
                     {renderStatusBadge(chat.status)}
+                    {chat.archivedAt && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium border flex items-center gap-1 bg-slate-700/40 text-slate-400 border-slate-600/40">
+                        <Archive className="w-3 h-3" />
+                        Arquivada
+                      </span>
+                    )}
                     {chat.tags.slice(0, 1).map(tag => (
                       <span key={tag} className="px-2 py-0.5 bg-slate-800/80 border border-slate-700 text-slate-400 text-[10px] rounded-md font-medium">
                         {tag}
