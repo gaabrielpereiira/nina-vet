@@ -323,7 +323,10 @@ export function useConversations() {
                   ...conv,
                   status: updated.status,
                   isActive: updated.is_active,
-                  assignedTeam: updated.assigned_team
+                  assignedTeam: updated.assigned_team,
+                  aiPaused: updated.ai_paused ?? conv.aiPaused,
+                  aiPausedReason: updated.ai_paused_reason ?? conv.aiPausedReason,
+                  archivedAt: updated.archived_at ?? null
                 };
               }
               return conv;
@@ -508,6 +511,41 @@ export function useConversations() {
     }
   }, []);
 
+  // Archive conversation (finished): pauses Nina and hides from main list.
+  // If the lead sends a new message, a DB trigger unarchives it and reactivates Nina.
+  const archiveConversation = useCallback(async (conversationId: string) => {
+    setConversations(prev => prev.map(c =>
+      c.id === conversationId
+        ? { ...c, archivedAt: new Date().toISOString(), status: 'paused' as const, aiPaused: true, aiPausedReason: 'manual' }
+        : c
+    ));
+    try {
+      await api.archiveConversation(conversationId);
+      toast.success('Conversa arquivada');
+    } catch (err) {
+      console.error('[useConversations] Error archiving conversation:', err);
+      toast.error('Erro ao arquivar conversa');
+      fetchConversations();
+    }
+  }, [fetchConversations]);
+
+  // Restore archived conversation: back to main list with Nina active
+  const unarchiveConversation = useCallback(async (conversationId: string) => {
+    setConversations(prev => prev.map(c =>
+      c.id === conversationId
+        ? { ...c, archivedAt: null, status: 'nina' as const, aiPaused: false, aiPausedReason: null }
+        : c
+    ));
+    try {
+      await api.unarchiveConversation(conversationId);
+      toast.success('Conversa restaurada — Nina reativada');
+    } catch (err) {
+      console.error('[useConversations] Error unarchiving conversation:', err);
+      toast.error('Erro ao restaurar conversa');
+      fetchConversations();
+    }
+  }, [fetchConversations]);
+
   return {
     conversations,
     loading,
@@ -518,6 +556,8 @@ export function useConversations() {
     markAsRead,
     assignConversation,
     setAiPaused,
+    archiveConversation,
+    unarchiveConversation,
     refetch: fetchConversations
   };
 }
