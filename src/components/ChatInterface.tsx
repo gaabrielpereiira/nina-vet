@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, MoreVertical, Phone, Paperclip, Send, Check, CheckCheck, 
   Smile, Play, Loader2, MessageSquare, Info, X, Mail, 
-  Tag, Bot, User, Pause, Brain, Plus
+  Tag, Bot, User, Pause, Brain, Plus, Archive, ArchiveRestore
 } from 'lucide-react';
 import { MessageDirection, MessageType, UIConversation, UIMessage, ConversationStatus, TagDefinition } from '../types';
 import { Button } from './Button';
@@ -13,13 +13,16 @@ import { api } from '@/services/api';
 import { TagSelector } from './TagSelector';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
+type ChatFilter = 'all' | 'nina' | 'human' | 'archived';
+
 const ChatInterface: React.FC = () => {
-  const { conversations, loading, sendMessage, updateStatus, markAsRead, assignConversation, setAiPaused } = useConversations();
+  const { conversations, loading, sendMessage, updateStatus, markAsRead, assignConversation, setAiPaused, archiveConversation, unarchiveConversation } = useConversations();
   const { sdrName, companyName } = useCompanySettings();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [showProfileInfo, setShowProfileInfo] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
   const [availableTags, setAvailableTags] = useState<TagDefinition[]>([]);
   const [isTagSelectorOpen, setIsTagSelectorOpen] = useState(false);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
@@ -161,6 +164,14 @@ const ChatInterface: React.FC = () => {
   };
 
   const filteredConversations = conversations.filter(chat => {
+    const isArchived = !!chat.archivedAt;
+    if (chatFilter === 'archived') {
+      if (!isArchived) return false;
+    } else {
+      if (isArchived) return false;
+      if (chatFilter === 'nina' && chat.status !== 'nina') return false;
+      if (chatFilter === 'human' && chat.status !== 'human') return false;
+    }
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -169,6 +180,13 @@ const ChatInterface: React.FC = () => {
       chat.lastMessage.toLowerCase().includes(query)
     );
   });
+
+  const filterCounts: Record<ChatFilter, number> = {
+    all: conversations.filter(c => !c.archivedAt).length,
+    nina: conversations.filter(c => !c.archivedAt && c.status === 'nina').length,
+    human: conversations.filter(c => !c.archivedAt && c.status === 'human').length,
+    archived: conversations.filter(c => !!c.archivedAt).length,
+  };
 
   const renderStatusBadge = (status: ConversationStatus) => {
     const config = {
