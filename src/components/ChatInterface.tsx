@@ -800,60 +800,152 @@ const ChatInterface: React.FC = () => {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-slate-900/90 border-t border-slate-800 backdrop-blur-sm z-10">
-              <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-4xl mx-auto">
-                <div className="flex items-center gap-1">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon" 
-                    disabled
-                    title="Em breve: Emoji picker"
-                    className="text-slate-500 rounded-full cursor-not-allowed opacity-50"
-                  >
-                    <Smile className="w-5 h-5" />
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon"
-                    disabled
-                    title="Em breve: Enviar anexos"
-                    className="text-slate-500 rounded-full cursor-not-allowed opacity-50"
-                  >
-                    <Paperclip className="w-5 h-5" />
-                  </Button>
-                </div>
-                
-                <div className="flex-1 bg-slate-950 rounded-2xl border border-slate-800 focus-within:ring-2 focus-within:ring-cyan-500/30 focus-within:border-cyan-500/50 transition-all shadow-inner">
-                  <textarea
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    placeholder={activeChat.status === 'nina' ? `${sdrName} está respondendo automaticamente...` : 'Digite sua mensagem...'}
-                    className="w-full bg-transparent border-none p-3.5 max-h-32 min-h-[48px] text-sm text-slate-200 focus:ring-0 resize-none outline-none placeholder:text-slate-600"
-                    rows={1}
-                  />
-                </div>
+            <div
+              className="p-4 bg-slate-900/90 border-t border-slate-800 backdrop-blur-sm z-10"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file) pickAttachment(file);
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) pickAttachment(file);
+                  e.target.value = '';
+                }}
+              />
 
-                <Button 
-                  type="submit" 
-                  disabled={!inputText.trim()}
-                  className={`rounded-full w-12 h-12 p-0 transition-all ${
-                    inputText.trim() 
-                      ? 'shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95' 
-                      : 'opacity-50 cursor-not-allowed'
-                  }`}
-                >
-                  <Send className="w-5 h-5 ml-0.5" />
-                </Button>
-              </form>
+              {/* Pré-visualização do anexo */}
+              {attachment && (
+                <div className="max-w-4xl mx-auto mb-3 flex items-center gap-3 bg-slate-950 border border-slate-800 rounded-xl p-3">
+                  {attachment.kind === 'image' ? (
+                    <img src={attachment.previewUrl} alt="Pré-visualização" className="w-16 h-16 rounded-lg object-cover" />
+                  ) : attachment.kind === 'video' ? (
+                    <video src={attachment.previewUrl} className="w-16 h-16 rounded-lg object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-slate-800 flex items-center justify-center">
+                      {attachment.kind === 'audio' ? <Play className="w-6 h-6 text-cyan-400" /> : <FileText className="w-6 h-6 text-cyan-400" />}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-200 truncate">{attachment.file.name}</p>
+                    <span className="text-xs text-slate-500">{(attachment.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  </div>
+                  <button type="button" onClick={clearAttachment} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Gravando áudio */}
+              {isRecording ? (
+                <div className="max-w-4xl mx-auto flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-sm text-slate-300 font-medium">Gravando… {formatAudioTime(recordingSeconds)}</span>
+                  <div className="flex-1" />
+                  <Button type="button" variant="ghost" onClick={() => stopRecording(true)} className="text-slate-400 rounded-full">
+                    Cancelar
+                  </Button>
+                  <Button type="button" onClick={() => stopRecording(false)} className="rounded-full w-12 h-12 p-0">
+                    <Send className="w-5 h-5 ml-0.5" />
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-4xl mx-auto">
+                  <div className="flex items-center gap-1">
+                    <Popover open={isEmojiOpen} onOpenChange={setIsEmojiOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Emojis"
+                          className="text-slate-400 hover:text-cyan-400 rounded-full"
+                        >
+                          <Smile className="w-5 h-5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2 bg-slate-900 border-slate-800" align="start">
+                        <div className="grid grid-cols-8 gap-1">
+                          {EMOJIS.map(emoji => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => insertEmoji(emoji)}
+                              className="text-xl leading-none p-1 rounded hover:bg-slate-800"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon"
+                      title="Anexar arquivo"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-slate-400 hover:text-cyan-400 rounded-full"
+                    >
+                      <Paperclip className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon"
+                      title="Gravar áudio"
+                      onClick={startRecording}
+                      className="text-slate-400 hover:text-cyan-400 rounded-full"
+                    >
+                      <Mic className="w-5 h-5" />
+                    </Button>
+                  </div>
+                  
+                  <div className="flex-1 bg-slate-950 rounded-2xl border border-slate-800 focus-within:ring-2 focus-within:ring-cyan-500/30 focus-within:border-cyan-500/50 transition-all shadow-inner">
+                    <textarea
+                      ref={textareaRef}
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onPaste={(e) => {
+                        const file = Array.from(e.clipboardData.files || [])[0];
+                        if (file) {
+                          e.preventDefault();
+                          pickAttachment(file);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder={attachment ? 'Adicione uma legenda (opcional)…' : activeChat.status === 'nina' ? `${sdrName} está respondendo automaticamente...` : 'Digite sua mensagem...'}
+                      className="w-full bg-transparent border-none p-3.5 max-h-32 min-h-[48px] text-sm text-slate-200 focus:ring-0 resize-none outline-none placeholder:text-slate-600"
+                      rows={1}
+                    />
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    disabled={(!inputText.trim() && !attachment) || isSending}
+                    className={`rounded-full w-12 h-12 p-0 transition-all ${
+                      (inputText.trim() || attachment) && !isSending
+                        ? 'shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95' 
+                        : 'opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 ml-0.5" />}
+                  </Button>
+                </form>
+              )}
             </div>
+
           </div>
 
           {/* Right Profile Sidebar (CRM View) */}
