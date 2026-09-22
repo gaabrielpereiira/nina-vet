@@ -1262,7 +1262,7 @@ export const api = {
       `)
       .eq('is_active', true)
       .order('last_message_at', { ascending: false })
-      .limit(50);
+      .limit(200);
 
     if (convError) {
       console.error('[API] Error fetching conversations:', convError);
@@ -1397,6 +1397,52 @@ export const api = {
     }
 
     console.log(`[API] Conversation ${conversationId} status updated to ${status}`);
+  },
+
+  /**
+   * Archive a conversation (finished): hides it from the main list and pauses Nina.
+   * If the lead sends a new message, a DB trigger unarchives it and reactivates Nina.
+   */
+  archiveConversation: async (conversationId: string): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from('conversations')
+      .update({
+        archived_at: new Date().toISOString(),
+        archived_by: user?.id ?? null,
+        status: 'paused',
+        ai_paused: true,
+        ai_paused_at: new Date().toISOString(),
+        ai_paused_reason: 'manual',
+      })
+      .eq('id', conversationId);
+
+    if (error) {
+      console.error('[API] Error archiving conversation:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Restore an archived conversation: back to the main list with Nina active.
+   */
+  unarchiveConversation: async (conversationId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('conversations')
+      .update({
+        archived_at: null,
+        archived_by: null,
+        status: 'nina',
+        ai_paused: false,
+        ai_paused_at: null,
+        ai_paused_reason: null,
+      })
+      .eq('id', conversationId);
+
+    if (error) {
+      console.error('[API] Error unarchiving conversation:', error);
+      throw error;
+    }
   },
 
   /**
