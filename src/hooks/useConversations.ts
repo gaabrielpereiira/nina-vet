@@ -355,8 +355,19 @@ export function useConversations() {
   }, [fetchConversations, fetchAndAddConversation, startPollingFallback, stopPollingFallback]);
 
   // Send message
-  const sendMessage = useCallback(async (conversationId: string, content: string) => {
-    if (!content.trim()) return;
+  const sendMessage = useCallback(async (
+    conversationId: string,
+    content: string,
+    media?: { url: string; type: 'image' | 'audio' | 'video' | 'document'; mimeType?: string; fileName?: string }
+  ) => {
+    if (!content.trim() && !media) return;
+
+    const typeMap: Record<string, MessageType> = {
+      image: MessageType.IMAGE,
+      audio: MessageType.AUDIO,
+      video: MessageType.VIDEO,
+      document: MessageType.DOCUMENT,
+    };
 
     // Optimistic update with temporary ID
     const tempId = `temp-${Date.now()}`;
@@ -365,10 +376,14 @@ export function useConversations() {
       content,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       direction: MessageDirection.OUTGOING,
-      type: MessageType.TEXT,
+      type: media ? typeMap[media.type] : MessageType.TEXT,
       status: 'sent',
       fromType: 'human',
-      mediaUrl: null,
+      mediaUrl: media?.url ?? null,
+      mediaType: media?.mimeType ?? null,
+      fileName: media?.fileName ?? null,
+      isSticker: false,
+      transcription: null,
       whatsappMessageId: null
     };
 
@@ -378,7 +393,7 @@ export function useConversations() {
           return {
             ...conv,
             messages: [...conv.messages, tempMessage],
-            lastMessage: content,
+            lastMessage: content || `[${media?.type ?? 'anexo'}]`,
             lastMessageTime: 'Agora'
           };
         }
@@ -387,8 +402,8 @@ export function useConversations() {
     });
 
     try {
-      // The realtime handler will detect and replace the temp message automatically
-      await api.sendMessage(conversationId, content);
+      await api.sendMessage(conversationId, content, media);
+
     } catch (err) {
       console.error('[useConversations] Error sending message:', err);
       toast.error('Erro ao enviar mensagem');
