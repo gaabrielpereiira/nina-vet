@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, MoreVertical, Phone, Paperclip, Send, Check, CheckCheck, 
   Smile, Play, Loader2, MessageSquare, Info, X, Mail, 
-  Tag, Bot, User, Pause, Brain, Plus, Archive, ArchiveRestore
+  Tag, Bot, User, Pause, Brain, Plus, Archive, ArchiveRestore,
+  Mic, FileText, Download
 } from 'lucide-react';
+
 import { MessageDirection, MessageType, UIConversation, UIMessage, ConversationStatus, TagDefinition } from '../types';
 import { Button } from './Button';
 import { useConversations } from '../hooks/useConversations';
@@ -34,7 +36,32 @@ const ChatInterface: React.FC = () => {
   const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const [audioProgress, setAudioProgress] = useState<Record<string, number>>({});
   const audioRefs = useRef<Record<string, HTMLAudioElement>>({});
-  
+
+  // Anexos / gravação / emoji
+  type MediaKind = 'image' | 'audio' | 'video' | 'document';
+  const [attachment, setAttachment] = useState<{ file: File; previewUrl: string; kind: MediaKind } | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [isEmojiOpen, setIsEmojiOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
+  const cancelRecordingRef = useRef(false);
+
+  const MAX_FILE_MB = 45;
+  const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','🤗','🤔','😅','😉','🙌','👍','👏','🙏','💪','❤️','🧡','💚','💙','✨','🎉','🔥','⭐','✅','❌','⏰','📅','📍','📞','💬','💰','🐶','🐱','🐾','🩺','💊','🚑','🎂','☀️'];
+
+  const kindFromMime = (mime: string): MediaKind => {
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('audio/')) return 'audio';
+    if (mime.startsWith('video/')) return 'video';
+    return 'document';
+  };
+
   const activeChat = conversations.find(c => c.id === selectedChatId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -45,6 +72,98 @@ const ChatInterface: React.FC = () => {
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const pickAttachment = (file: File) => {
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      toast.error(`Arquivo muito grande. Limite de ${MAX_FILE_MB} MB.`);
+      return;
+    }
+    setAttachment({ file, previewUrl: URL.createObjectURL(file), kind: kindFromMime(file.type || '') });
+  };
+
+  const clearAttachment = () => {
+    if (attachment) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const el = textareaRef.current;
+    if (!el) {
+      setInputText(prev => prev + emoji);
+      return;
+    }
+    const start = el.selectionStart ?? inputText.length;
+    const end = el.selectionEnd ?? inputText.length;
+    const next = inputText.slice(0, start) + emoji + inputText.slice(end);
+    setInputText(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+
+  const startRecording = async () => {
+    if (!activeChat) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeCandidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+      const mimeType = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordedChunksRef.current = [];
+      cancelRecordingRef.current = false;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+        setIsRecording(false);
+        setRecordingSeconds(0);
+        if (cancelRecordingRef.current) return;
+        const type = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(recordedChunksRef.current, { type });
+        const ext = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+        const file = new File([blob], `audio-${Date.now()}.${ext}`, { type });
+        await sendWithMedia(file, '');
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = window.setInterval(() => setRecordingSeconds(s => s + 1), 1000);
+    } catch (err) {
+      console.error('Erro ao acessar microfone:', err);
+      toast.error('Não foi possível acessar o microfone');
+    }
+  };
+
+  const stopRecording = (cancel = false) => {
+    cancelRecordingRef.current = cancel;
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  };
+
+  const sendWithMedia = async (file: File, caption: string) => {
+    if (!activeChat) return;
+    setIsSending(true);
+    try {
+      const url = await api.uploadChatMedia(activeChat.id, file, file.name);
+      await sendMessage(activeChat.id, caption, {
+        url,
+        type: kindFromMime(file.type || ''),
+        mimeType: file.type || undefined,
+        fileName: file.name,
+      });
+    } catch (err) {
+      console.error('Erro ao enviar anexo:', err);
+      toast.error('Erro ao enviar o arquivo');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
 
   // Load tag definitions and team members
   useEffect(() => {
@@ -150,13 +269,23 @@ const ChatInterface: React.FC = () => {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!inputText.trim() || !activeChat) return;
+    if (!activeChat || isSending) return;
 
     const content = inputText.trim();
+
+    if (attachment) {
+      const file = attachment.file;
+      clearAttachment();
+      setInputText('');
+      await sendWithMedia(file, content);
+      return;
+    }
+
+    if (!content) return;
     setInputText('');
-    
     await sendMessage(activeChat.id, content);
   };
+
 
   const handleStatusChange = async (status: ConversationStatus) => {
     if (!activeChat) return;
@@ -205,20 +334,68 @@ const ChatInterface: React.FC = () => {
 
   const renderMessageContent = (msg: UIMessage) => {
     if (msg.type === MessageType.IMAGE) {
+      const src = msg.mediaUrl || msg.content;
+      const hasCaption = msg.content && msg.content !== src && !msg.content.startsWith('[');
+
+      if (msg.isSticker) {
+        return (
+          <div className="mb-1">
+            <img src={src} alt="Figurinha" className="w-28 h-28 object-contain" loading="lazy" />
+          </div>
+        );
+      }
+
       return (
         <div className="mb-1 group relative">
           <img 
-            src={msg.mediaUrl || msg.content} 
+            src={src} 
             alt="Anexo" 
-            className="rounded-lg max-w-full h-auto max-h-72 object-cover border border-slate-700/50 shadow-lg"
+            onClick={() => msg.mediaUrl && setLightboxUrl(msg.mediaUrl)}
+            className="rounded-lg max-w-full h-auto max-h-72 object-cover border border-slate-700/50 shadow-lg cursor-zoom-in"
             loading="lazy"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://placehold.co/300x200/1e293b/cbd5e1?text=Erro+Imagem';
             }}
           />
+          {hasCaption && <p className="mt-1 leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
         </div>
       );
     }
+
+    if (msg.type === MessageType.VIDEO) {
+      const hasCaption = msg.content && !msg.content.startsWith('[');
+      return (
+        <div className="mb-1">
+          {msg.mediaUrl ? (
+            <video src={msg.mediaUrl} controls className="rounded-lg max-w-full max-h-72 border border-slate-700/50" />
+          ) : (
+            <p className="text-xs opacity-70">Vídeo indisponível</p>
+          )}
+          {hasCaption && <p className="mt-1 leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
+        </div>
+      );
+    }
+
+    if (msg.type === MessageType.DOCUMENT) {
+      return (
+        <a
+          href={msg.mediaUrl || '#'}
+          target="_blank"
+          rel="noreferrer"
+          className={`flex items-center gap-3 rounded-lg px-3 py-2 min-w-[200px] transition-colors ${
+            msg.direction === MessageDirection.OUTGOING ? 'bg-white/15 hover:bg-white/25' : 'bg-slate-800/70 hover:bg-slate-800'
+          } ${msg.mediaUrl ? '' : 'pointer-events-none opacity-60'}`}
+        >
+          <FileText className="w-6 h-6 flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm truncate">{msg.fileName || 'Documento'}</p>
+            <span className="text-[10px] opacity-70">{msg.mediaUrl ? 'Clique para baixar' : 'Indisponível'}</span>
+          </div>
+          <Download className="w-4 h-4 ml-auto flex-shrink-0 opacity-80" />
+        </a>
+      );
+    }
+
 
     if (msg.type === MessageType.AUDIO) {
       const isPlaying = playingAudioId === msg.id;
@@ -240,8 +417,12 @@ const ChatInterface: React.FC = () => {
         }
       };
 
+      const transcript = msg.transcription || (msg.content && !msg.content.startsWith('[') ? msg.content : null);
+
       return (
-        <div className="flex items-center gap-3 min-w-[220px] py-1">
+        <div className="py-1">
+        <div className="flex items-center gap-3 min-w-[220px]">
+
           {/* Hidden audio element */}
           {msg.mediaUrl && (
             <audio
@@ -304,8 +485,17 @@ const ChatInterface: React.FC = () => {
             </span>
           </div>
         </div>
+        {transcript && (
+          <p className={`mt-1.5 text-xs italic leading-relaxed whitespace-pre-wrap ${
+            msg.direction === MessageDirection.OUTGOING ? 'text-cyan-50/90' : 'text-slate-400'
+          }`}>
+            “{transcript}”
+          </p>
+        )}
+        </div>
       );
     }
+
 
     return <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>;
   };
@@ -612,60 +802,152 @@ const ChatInterface: React.FC = () => {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-slate-900/90 border-t border-slate-800 backdrop-blur-sm z-10">
-              <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-4xl mx-auto">
-                <div className="flex items-center gap-1">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon" 
-                    disabled
-                    title="Em breve: Emoji picker"
-                    className="text-slate-500 rounded-full cursor-not-allowed opacity-50"
-                  >
-                    <Smile className="w-5 h-5" />
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="icon"
-                    disabled
-                    title="Em breve: Enviar anexos"
-                    className="text-slate-500 rounded-full cursor-not-allowed opacity-50"
-                  >
-                    <Paperclip className="w-5 h-5" />
-                  </Button>
-                </div>
-                
-                <div className="flex-1 bg-slate-950 rounded-2xl border border-slate-800 focus-within:ring-2 focus-within:ring-cyan-500/30 focus-within:border-cyan-500/50 transition-all shadow-inner">
-                  <textarea
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    placeholder={activeChat.status === 'nina' ? `${sdrName} está respondendo automaticamente...` : 'Digite sua mensagem...'}
-                    className="w-full bg-transparent border-none p-3.5 max-h-32 min-h-[48px] text-sm text-slate-200 focus:ring-0 resize-none outline-none placeholder:text-slate-600"
-                    rows={1}
-                  />
-                </div>
+            <div
+              className="p-4 bg-slate-900/90 border-t border-slate-800 backdrop-blur-sm z-10"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file) pickAttachment(file);
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) pickAttachment(file);
+                  e.target.value = '';
+                }}
+              />
 
-                <Button 
-                  type="submit" 
-                  disabled={!inputText.trim()}
-                  className={`rounded-full w-12 h-12 p-0 transition-all ${
-                    inputText.trim() 
-                      ? 'shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95' 
-                      : 'opacity-50 cursor-not-allowed'
-                  }`}
-                >
-                  <Send className="w-5 h-5 ml-0.5" />
-                </Button>
-              </form>
+              {/* Pré-visualização do anexo */}
+              {attachment && (
+                <div className="max-w-4xl mx-auto mb-3 flex items-center gap-3 bg-slate-950 border border-slate-800 rounded-xl p-3">
+                  {attachment.kind === 'image' ? (
+                    <img src={attachment.previewUrl} alt="Pré-visualização" className="w-16 h-16 rounded-lg object-cover" />
+                  ) : attachment.kind === 'video' ? (
+                    <video src={attachment.previewUrl} className="w-16 h-16 rounded-lg object-cover" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-lg bg-slate-800 flex items-center justify-center">
+                      {attachment.kind === 'audio' ? <Play className="w-6 h-6 text-cyan-400" /> : <FileText className="w-6 h-6 text-cyan-400" />}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-200 truncate">{attachment.file.name}</p>
+                    <span className="text-xs text-slate-500">{(attachment.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  </div>
+                  <button type="button" onClick={clearAttachment} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Gravando áudio */}
+              {isRecording ? (
+                <div className="max-w-4xl mx-auto flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-sm text-slate-300 font-medium">Gravando… {formatAudioTime(recordingSeconds)}</span>
+                  <div className="flex-1" />
+                  <Button type="button" variant="ghost" onClick={() => stopRecording(true)} className="text-slate-400 rounded-full">
+                    Cancelar
+                  </Button>
+                  <Button type="button" onClick={() => stopRecording(false)} className="rounded-full w-12 h-12 p-0">
+                    <Send className="w-5 h-5 ml-0.5" />
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleSendMessage} className="flex items-end gap-3 max-w-4xl mx-auto">
+                  <div className="flex items-center gap-1">
+                    <Popover open={isEmojiOpen} onOpenChange={setIsEmojiOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          title="Emojis"
+                          className="text-slate-400 hover:text-cyan-400 rounded-full"
+                        >
+                          <Smile className="w-5 h-5" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2 bg-slate-900 border-slate-800" align="start">
+                        <div className="grid grid-cols-8 gap-1">
+                          {EMOJIS.map(emoji => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => insertEmoji(emoji)}
+                              className="text-xl leading-none p-1 rounded hover:bg-slate-800"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon"
+                      title="Anexar arquivo"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-slate-400 hover:text-cyan-400 rounded-full"
+                    >
+                      <Paperclip className="w-5 h-5" />
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="icon"
+                      title="Gravar áudio"
+                      onClick={startRecording}
+                      className="text-slate-400 hover:text-cyan-400 rounded-full"
+                    >
+                      <Mic className="w-5 h-5" />
+                    </Button>
+                  </div>
+                  
+                  <div className="flex-1 bg-slate-950 rounded-2xl border border-slate-800 focus-within:ring-2 focus-within:ring-cyan-500/30 focus-within:border-cyan-500/50 transition-all shadow-inner">
+                    <textarea
+                      ref={textareaRef}
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onPaste={(e) => {
+                        const file = Array.from(e.clipboardData.files || [])[0];
+                        if (file) {
+                          e.preventDefault();
+                          pickAttachment(file);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder={attachment ? 'Adicione uma legenda (opcional)…' : activeChat.status === 'nina' ? `${sdrName} está respondendo automaticamente...` : 'Digite sua mensagem...'}
+                      className="w-full bg-transparent border-none p-3.5 max-h-32 min-h-[48px] text-sm text-slate-200 focus:ring-0 resize-none outline-none placeholder:text-slate-600"
+                      rows={1}
+                    />
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    disabled={(!inputText.trim() && !attachment) || isSending}
+                    className={`rounded-full w-12 h-12 p-0 transition-all ${
+                      (inputText.trim() || attachment) && !isSending
+                        ? 'shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95' 
+                        : 'opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 ml-0.5" />}
+                  </Button>
+                </form>
+              )}
             </div>
+
           </div>
 
           {/* Right Profile Sidebar (CRM View) */}
@@ -889,7 +1171,36 @@ const ChatInterface: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Lightbox de imagem */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img src={lightboxUrl} alt="Imagem" className="max-h-full max-w-full object-contain rounded-lg" />
+          <div className="absolute top-4 right-4 flex gap-2">
+            <a
+              href={lightboxUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-2 rounded-full bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+              title="Baixar"
+            >
+              <Download className="w-5 h-5" />
+            </a>
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="p-2 rounded-full bg-slate-900/80 text-slate-200 hover:bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 };
 

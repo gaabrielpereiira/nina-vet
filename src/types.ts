@@ -2,8 +2,11 @@
 export enum MessageType {
   TEXT = 'text',
   IMAGE = 'image',
-  AUDIO = 'audio'
+  AUDIO = 'audio',
+  VIDEO = 'video',
+  DOCUMENT = 'document'
 }
+
 
 export enum MessageDirection {
   INCOMING = 'incoming',
@@ -316,8 +319,13 @@ export interface UIMessage {
   status: 'sent' | 'delivered' | 'read';
   fromType: MessageFromType;
   mediaUrl: string | null;
+  mediaType: string | null;
+  fileName: string | null;
+  isSticker: boolean;
+  transcription: string | null;
   whatsappMessageId: string | null;
 }
+
 
 // ============= Utility Functions =============
 export function transformDBToUIConversation(
@@ -359,6 +367,7 @@ export function transformDBToUIConversation(
 }
 
 export function transformDBToUIMessage(msg: DBMessage): UIMessage {
+  const meta = (msg.metadata || {}) as Record<string, any>;
   return {
     id: msg.id,
     content: msg.content || '',
@@ -368,6 +377,10 @@ export function transformDBToUIMessage(msg: DBMessage): UIMessage {
     status: mapDBMessageStatus(msg.status),
     fromType: msg.from_type,
     mediaUrl: msg.media_url,
+    mediaType: msg.media_type,
+    fileName: meta.file_name ?? null,
+    isSticker: meta.is_sticker === true,
+    transcription: meta.transcription ?? null,
     whatsappMessageId: msg.whatsapp_message_id
   };
 }
@@ -376,9 +389,12 @@ function mapDBMessageType(type: DBMessageType): MessageType {
   switch (type) {
     case 'image': return MessageType.IMAGE;
     case 'audio': return MessageType.AUDIO;
+    case 'video': return MessageType.VIDEO;
+    case 'document': return MessageType.DOCUMENT;
     default: return MessageType.TEXT;
   }
 }
+
 
 function mapDBMessageStatus(status: DBMessageStatus): 'sent' | 'delivered' | 'read' {
   switch (status) {

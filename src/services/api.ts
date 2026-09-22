@@ -1301,10 +1301,38 @@ export const api = {
   },
 
   /**
+   * Upload de um arquivo do chat (anexo ou áudio gravado) e retorno da URL pública
+   */
+  uploadChatMedia: async (conversationId: string, file: File | Blob, fileName: string): Promise<string> => {
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60);
+    const path = `outbound/${conversationId}/${Date.now()}-${safeName}`;
+
+    const { error } = await supabase.storage
+      .from('audio-messages')
+      .upload(path, file, {
+        contentType: (file as File).type || 'application/octet-stream',
+        upsert: true,
+      });
+
+    if (error) {
+      console.error('[API] Error uploading chat media:', error);
+      throw error;
+    }
+
+    const { data } = supabase.storage.from('audio-messages').getPublicUrl(path);
+    if (!data?.publicUrl) throw new Error('Não foi possível gerar o link do arquivo');
+    return data.publicUrl;
+  },
+
+  /**
    * Send a message (insert into send_queue for human messages)
    * Returns the ID of the created message
    */
-  sendMessage: async (conversationId: string, content: string): Promise<string> => {
+  sendMessage: async (
+    conversationId: string,
+    content: string,
+    media?: { url: string; type: 'image' | 'audio' | 'video' | 'document'; mimeType?: string; fileName?: string }
+  ): Promise<string> => {
     console.log(`[API] Sending message to conversation ${conversationId}`);
 
     // Get conversation to find contact_id
@@ -1319,15 +1347,20 @@ export const api = {
       throw new Error('Conversation not found');
     }
 
+    const messageType = media?.type || 'text';
+
     // First create the message record with status 'processing'
     const { data: msgData, error: msgError } = await supabase
       .from('messages')
       .insert({
         conversation_id: conversationId,
         content: content,
-        type: 'text',
+        type: messageType,
         from_type: 'human',
         status: 'processing',
+        media_url: media?.url ?? null,
+        media_type: media?.mimeType ?? null,
+        metadata: media?.fileName ? { file_name: media.fileName } : {},
         sent_at: new Date().toISOString()
       })
       .select('id')
@@ -1348,7 +1381,8 @@ export const api = {
         contact_id: conversation.contact_id,
         content: content,
         from_type: 'human',
-        message_type: 'text',
+        message_type: messageType,
+        media_url: media?.url ?? null,
         priority: 2, // Higher priority for human messages
         message_id: msgData.id  // Reference to the pre-created message
       });
@@ -1357,6 +1391,7 @@ export const api = {
       console.error('[API] Error queuing message:', sendError);
       throw sendError;
     }
+
 
     console.log('[API] Message queued for sending');
 
