@@ -92,13 +92,10 @@ const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
-        <Toaster 
-          position="top-right"
-          richColors
-          theme="dark"
-        />
-      </CompanySettingsProvider>
-    </AuthProvider>
+          <ThemedToaster />
+        </CompanySettingsProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
 
