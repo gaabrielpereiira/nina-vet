@@ -14,6 +14,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 import { CompanySettingsProvider } from './hooks/useCompanySettings';
 import { AuthProvider } from './hooks/useAuth';
+import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { Toaster } from 'sonner';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { useOnboardingStatus } from './hooks/useOnboardingStatus';
@@ -55,10 +56,16 @@ const AppLayout: React.FC = () => {
   );
 };
 
+const ThemedToaster: React.FC = () => {
+  const { theme } = useTheme();
+  return <Toaster position="top-right" richColors theme={theme} />;
+};
+
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <CompanySettingsProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <CompanySettingsProvider>
         <BrowserRouter>
           <Routes>
             {/* Public Routes */}
@@ -85,13 +92,10 @@ const App: React.FC = () => {
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </BrowserRouter>
-        <Toaster 
-          position="top-right"
-          richColors
-          theme="dark"
-        />
-      </CompanySettingsProvider>
-    </AuthProvider>
+          <ThemedToaster />
+        </CompanySettingsProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
 

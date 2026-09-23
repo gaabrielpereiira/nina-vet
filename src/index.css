@@ -3,39 +3,68 @@
 @tailwind utilities;
 
 @layer base {
+  /* ================= LIGHT THEME (default) ================= */
   :root {
-    /* Vet+ brand — dark mode */
-    --background: 195 20% 8%;
-    --foreground: 180 15% 95%;
-    --card: 195 20% 10%;
-    --card-foreground: 180 15% 95%;
-    --popover: 195 20% 12%;
-    --popover-foreground: 180 15% 95%;
-    --primary: 174 45% 60%;
-    --primary-foreground: 195 30% 10%;
-    --secondary: 180 15% 18%;
-    --secondary-foreground: 180 15% 95%;
-    --muted: 180 15% 18%;
-    --muted-foreground: 180 10% 70%;
-    --accent: 48 55% 78%;
-    --accent-foreground: 195 30% 10%;
-    --destructive: 0 62.8% 45%;
-    --destructive-foreground: 180 15% 95%;
-    --border: 180 15% 20%;
-    --input: 180 15% 22%;
-    --ring: 174 45% 60%;
+    --background: 180 25% 98%;
+    --foreground: 195 30% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 195 30% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 195 30% 12%;
+    --primary: 174 45% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 180 25% 92%;
+    --secondary-foreground: 195 30% 15%;
+    --muted: 180 20% 94%;
+    --muted-foreground: 195 12% 40%;
+    --accent: 48 55% 85%;
+    --accent-foreground: 195 30% 15%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 180 18% 86%;
+    --input: 180 18% 84%;
+    --ring: 174 45% 45%;
     --radius: 0.5rem;
 
-    --sidebar-background: 195 20% 8%;
-    --sidebar-foreground: 180 15% 92%;
-    --sidebar-primary: 174 45% 60%;
-    --sidebar-primary-foreground: 195 30% 10%;
-    --sidebar-accent: 180 15% 18%;
-    --sidebar-accent-foreground: 180 15% 92%;
-    --sidebar-border: 180 15% 20%;
-    --sidebar-ring: 174 45% 60%;
+    --sidebar-background: 180 25% 97%;
+    --sidebar-foreground: 195 30% 15%;
+    --sidebar-primary: 174 45% 42%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 180 25% 92%;
+    --sidebar-accent-foreground: 195 30% 15%;
+    --sidebar-border: 180 18% 86%;
+    --sidebar-ring: 174 45% 45%;
+
+    /* Neutral scale (inverted in light mode so surfaces stay light
+       and text stays dark across the whole app) */
+    --s-50: 222 40% 14%;
+    --s-100: 217 30% 22%;
+    --s-200: 215 22% 30%;
+    --s-300: 215 18% 40%;
+    --s-400: 200 10% 42%;
+    --s-500: 200 10% 50%;
+    --s-600: 200 12% 62%;
+    --s-700: 180 16% 86%;
+    --s-800: 180 18% 90%;
+    --s-900: 180 22% 96%;
+    --s-950: 0 0% 100%;
+
+    --c-white: 195 30% 12%;
+    --c-black: 0 0% 100%;
+
+    /* Brand accents, darkened for contrast on light surfaces */
+    --a-200: 188 60% 30%;
+    --a-300: 190 65% 32%;
+    --a-400: 191 80% 33%;
+    --a-500: 189 85% 38%;
+    --e-300: 163 80% 26%;
+    --e-400: 161 80% 30%;
+
+    --scrollbar-thumb: 180 12% 78%;
+    --scrollbar-thumb-hover: 180 12% 66%;
   }
 
+  /* ================= DARK THEME (Vet+ original) ================= */
   .dark {
     --background: 195 20% 8%;
     --foreground: 180 15% 95%;
@@ -56,6 +85,7 @@
     --border: 180 15% 20%;
     --input: 180 15% 22%;
     --ring: 174 45% 60%;
+
     --sidebar-background: 195 20% 8%;
     --sidebar-foreground: 180 15% 92%;
     --sidebar-primary: 174 45% 60%;
@@ -64,19 +94,43 @@
     --sidebar-accent-foreground: 180 15% 92%;
     --sidebar-border: 180 15% 20%;
     --sidebar-ring: 174 45% 60%;
-  }
 
+    --s-50: 210 40% 98%;
+    --s-100: 210 40% 96%;
+    --s-200: 214 32% 91%;
+    --s-300: 213 27% 84%;
+    --s-400: 215 20% 65%;
+    --s-500: 215 16% 47%;
+    --s-600: 215 19% 35%;
+    --s-700: 215 25% 27%;
+    --s-800: 217 33% 17%;
+    --s-900: 222 47% 11%;
+    --s-950: 229 40% 6%;
+
+    --c-white: 0 0% 100%;
+    --c-black: 0 0% 0%;
+
+    --a-200: 186 94% 82%;
+    --a-300: 187 92% 69%;
+    --a-400: 188 86% 53%;
+    --a-500: 189 94% 43%;
+    --e-300: 152 76% 80%;
+    --e-400: 158 64% 52%;
+
+    --scrollbar-thumb: 217 33% 25%;
+    --scrollbar-thumb-hover: 217 33% 35%;
+  }
 }
 
 @layer base {
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground;
   }
-  
+
   /* Smooth transitions for interactive elements */
   button, a, input, textarea, select {
     @apply transition-colors duration-200;
@@ -89,14 +143,14 @@
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent; 
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(217.2 32.6% 25%);
+  background: hsl(var(--scrollbar-thumb));
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(217.2 32.6% 35%);
+  background: hsl(var(--scrollbar-thumb-hover));
 }
 
 /* Focus ring styling */
