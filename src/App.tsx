@@ -14,6 +14,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 import { CompanySettingsProvider } from './hooks/useCompanySettings';
 import { AuthProvider } from './hooks/useAuth';
+import { ThemeProvider, useTheme } from './hooks/useTheme';
 import { Toaster } from 'sonner';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { useOnboardingStatus } from './hooks/useOnboardingStatus';
