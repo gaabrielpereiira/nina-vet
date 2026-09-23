@@ -55,7 +55,7 @@ export const EmailChangeEmail = ({
           Clique no botão abaixo para confirmar a alteração:
         </Text>
         <Button className="dm-btn" style={button} href={confirmationUrl}>
-          Confirm Email Change
+          Confirmar alteração
         </Button>
         <Text style={footer}>
           Se você não pediu esta alteração, proteja sua conta imediatamente.

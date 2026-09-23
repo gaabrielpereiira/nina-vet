@@ -35,7 +35,7 @@ export const MagicLinkEmail = ({
           alguns minutos.
         </Text>
         <Button className="dm-btn" style={button} href={confirmationUrl}>
-          Log In
+          Entrar
         </Button>
         <Text style={footer}>
           Se você não pediu este link, pode ignorar este email.

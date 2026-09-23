@@ -35,7 +35,7 @@ export const RecoveryEmail = ({
           botão abaixo para escolher uma nova senha.
         </Text>
         <Button className="dm-btn" style={button} href={confirmationUrl}>
-          Reset Password
+          Redefinir senha
         </Button>
         <Text style={footer}>
           Se você não pediu a redefinição, pode ignorar este email. Sua senha

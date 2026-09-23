@@ -41,7 +41,7 @@ export const InviteEmail = ({
           . Clique no botão abaixo para aceitar o convite e criar seu acesso.
         </Text>
         <Button className="dm-btn" style={button} href={confirmationUrl}>
-          Accept Invitation
+          Aceitar convite
         </Button>
         <Text style={footer}>
           Se você não esperava este convite, pode ignorar este email.
