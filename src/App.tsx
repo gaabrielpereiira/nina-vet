@@ -56,10 +56,16 @@ const AppLayout: React.FC = () => {
   );
 };
 
+const ThemedToaster: React.FC = () => {
+  const { theme } = useTheme();
+  return <Toaster position="top-right" richColors theme={theme} />;
+};
+
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <CompanySettingsProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <CompanySettingsProvider>
         <BrowserRouter>
           <Routes>
             {/* Public Routes */}
