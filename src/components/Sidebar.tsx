@@ -7,6 +7,7 @@ import { Sidebar, SidebarBody, SidebarLink, useSidebar } from '@/components/ui/s
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import ThemeToggle from '@/components/ThemeToggle';
 import vetLogoAsset from '@/assets/logo-vetmais.jpeg.asset.json';
 const viaIcon = vetLogoAsset.url;
 const viaLogoWhite = vetLogoAsset.url;
@@ -129,6 +130,11 @@ const SidebarContent = () => {
           />
         </motion.div>
       )}
+
+      {/* Theme switch */}
+      <div className={`pb-3 flex ${open ? 'justify-start' : 'justify-center'}`}>
+        <ThemeToggle showLabel={open} />
+      </div>
 
       {/* User Footer */}
       <div className="border-t border-border/50 pt-4">
