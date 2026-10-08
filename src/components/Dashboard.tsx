@@ -94,9 +94,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="p-6 space-y-8 overflow-y-auto h-full bg-slate-950 text-slate-50 custom-scrollbar">
-      {/* Onboarding Banner */}
-      <OnboardingBanner onOpenWizard={() => setShowOnboarding(true)} />
-
       {/* System Health Card */}
       <SystemHealthCard />
 
