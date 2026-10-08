@@ -25,6 +25,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+          setTimeout(() => {
+            supabase.rpc('activate_my_team_membership' as any).then(() => {});
+          }, 0);
+        }
       }
     );
 
