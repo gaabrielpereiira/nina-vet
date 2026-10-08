@@ -3,14 +3,7 @@ import { Activity, DollarSign, MessageSquare, Users, Loader2, TrendingUp, Trendi
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { StatMetric } from '../types';
 import { api } from '../services/api';
-import { OnboardingBanner } from './OnboardingBanner';
 import { SystemHealthCard } from './SystemHealthCard';
-import { useOutletContext } from 'react-router-dom';
-
-interface OutletContext {
-  showOnboarding: boolean;
-  setShowOnboarding: (show: boolean) => void;
-}
 
 type PeriodFilter = 'today' | '7days' | '30days';
 
