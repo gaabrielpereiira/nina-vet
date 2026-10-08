@@ -185,6 +185,209 @@ export type Database = {
           },
         ]
       }
+      automation_executions: {
+        Row: {
+          event_id: string | null
+          executed_at: string
+          external_id: string
+          id: string
+          rule_id: string
+          target_signature: string
+        }
+        Insert: {
+          event_id?: string | null
+          executed_at?: string
+          external_id: string
+          id?: string
+          rule_id: string
+          target_signature: string
+        }
+        Update: {
+          event_id?: string | null
+          executed_at?: string
+          external_id?: string
+          id?: string
+          rule_id?: string
+          target_signature?: string
+        }
+        Relationships: []
+      }
+      automation_logs: {
+        Row: {
+          event_id: string | null
+          executed_at: string
+          id: string
+          result: Json
+          rule_id: string | null
+          status: string
+        }
+        Insert: {
+          event_id?: string | null
+          executed_at?: string
+          id?: string
+          result?: Json
+          rule_id?: string | null
+          status: string
+        }
+        Update: {
+          event_id?: string | null
+          executed_at?: string
+          id?: string
+          result?: Json
+          rule_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_logs_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_logs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_rules: {
+        Row: {
+          action_config: Json
+          action_type: string
+          active: boolean
+          cancel_if_changed: boolean
+          cooldown_hours: number
+          created_at: string
+          delay_minutes: number
+          filters: Json
+          id: string
+          name: string
+          trigger_topic: string
+          updated_at: string
+        }
+        Insert: {
+          action_config?: Json
+          action_type: string
+          active?: boolean
+          cancel_if_changed?: boolean
+          cooldown_hours?: number
+          created_at?: string
+          delay_minutes?: number
+          filters?: Json
+          id?: string
+          name: string
+          trigger_topic: string
+          updated_at?: string
+        }
+        Update: {
+          action_config?: Json
+          action_type?: string
+          active?: boolean
+          cancel_if_changed?: boolean
+          cooldown_hours?: number
+          created_at?: string
+          delay_minutes?: number
+          filters?: Json
+          id?: string
+          name?: string
+          trigger_topic?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      automation_scheduled: {
+        Row: {
+          cancel_reason: string | null
+          created_at: string
+          event_id: string | null
+          executed_at: string | null
+          external_id: string | null
+          id: string
+          payload: Json
+          rule_id: string
+          scheduled_for: string
+          status: string
+          status_at_schedule: string | null
+          target_signature: string | null
+          updated_at: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          created_at?: string
+          event_id?: string | null
+          executed_at?: string | null
+          external_id?: string | null
+          id?: string
+          payload?: Json
+          rule_id: string
+          scheduled_for: string
+          status?: string
+          status_at_schedule?: string | null
+          target_signature?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          created_at?: string
+          event_id?: string | null
+          executed_at?: string | null
+          external_id?: string | null
+          id?: string
+          payload?: Json
+          rule_id?: string
+          scheduled_for?: string
+          status?: string
+          status_at_schedule?: string | null
+          target_signature?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_scheduled_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_scheduled_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_cooldowns: {
+        Row: {
+          contact_phone: string
+          last_sent_at: string
+          rule_id: string
+        }
+        Insert: {
+          contact_phone: string
+          last_sent_at?: string
+          rule_id: string
+        }
+        Update: {
+          contact_phone?: string
+          last_sent_at?: string
+          rule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_cooldowns_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           blocked_at: string | null
@@ -795,6 +998,7 @@ export type Database = {
           vetsoft_login_tenant: string | null
           vetsoft_refresh_token: string | null
           vetsoft_token_expires_at: string | null
+          wc_webhook_secret: string | null
           whatsapp_access_token: string | null
           whatsapp_business_account_id: string | null
           whatsapp_phone_number_id: string | null
@@ -853,6 +1057,7 @@ export type Database = {
           vetsoft_login_tenant?: string | null
           vetsoft_refresh_token?: string | null
           vetsoft_token_expires_at?: string | null
+          wc_webhook_secret?: string | null
           whatsapp_access_token?: string | null
           whatsapp_business_account_id?: string | null
           whatsapp_phone_number_id?: string | null
@@ -911,6 +1116,7 @@ export type Database = {
           vetsoft_login_tenant?: string | null
           vetsoft_refresh_token?: string | null
           vetsoft_token_expires_at?: string | null
+          wc_webhook_secret?: string | null
           whatsapp_access_token?: string | null
           whatsapp_business_account_id?: string | null
           whatsapp_phone_number_id?: string | null
@@ -923,6 +1129,111 @@ export type Database = {
           zernio_display_name?: string | null
           zernio_display_phone_number?: string | null
           zernio_profile_id?: string | null
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          contact_id: string | null
+          conversation_id: string | null
+          created_at: string
+          id: string
+          is_read: boolean
+          metadata: Json
+          title: string
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          metadata?: Json
+          title: string
+          type: string
+        }
+        Update: {
+          body?: string | null
+          contact_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          metadata?: Json
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          billing: Json | null
+          contact_id: string | null
+          created_at: string
+          currency: string | null
+          customer_email: string | null
+          customer_id: number | null
+          customer_name: string | null
+          customer_phone: string | null
+          id: string
+          is_first_order: boolean | null
+          last_processed_status: string | null
+          line_items: Json | null
+          order_created_at: string | null
+          payment_method: string | null
+          payment_method_title: string | null
+          raw_payload: Json | null
+          status: string | null
+          total: number | null
+          updated_at: string
+          woo_order_id: number
+        }
+        Insert: {
+          billing?: Json | null
+          contact_id?: string | null
+          created_at?: string
+          currency?: string | null
+          customer_email?: string | null
+          customer_id?: number | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          is_first_order?: boolean | null
+          last_processed_status?: string | null
+          line_items?: Json | null
+          order_created_at?: string | null
+          payment_method?: string | null
+          payment_method_title?: string | null
+          raw_payload?: Json | null
+          status?: string | null
+          total?: number | null
+          updated_at?: string
+          woo_order_id: number
+        }
+        Update: {
+          billing?: Json | null
+          contact_id?: string | null
+          created_at?: string
+          currency?: string | null
+          customer_email?: string | null
+          customer_id?: number | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          is_first_order?: boolean | null
+          last_processed_status?: string | null
+          line_items?: Json | null
+          order_created_at?: string | null
+          payment_method?: string | null
+          payment_method_title?: string | null
+          raw_payload?: Json | null
+          status?: string | null
+          total?: number | null
+          updated_at?: string
+          woo_order_id?: number
         }
         Relationships: []
       }
@@ -1529,6 +1840,105 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_events: {
+        Row: {
+          dry_run: boolean
+          error: string | null
+          event_signature: string | null
+          external_id: string | null
+          id: string
+          last_error_at: string | null
+          next_retry_at: string | null
+          payload: Json
+          processed: boolean
+          processing_at: string | null
+          received_at: string
+          retry_count: number
+          source: string
+          topic: string
+        }
+        Insert: {
+          dry_run?: boolean
+          error?: string | null
+          event_signature?: string | null
+          external_id?: string | null
+          id?: string
+          last_error_at?: string | null
+          next_retry_at?: string | null
+          payload?: Json
+          processed?: boolean
+          processing_at?: string | null
+          received_at?: string
+          retry_count?: number
+          source?: string
+          topic: string
+        }
+        Update: {
+          dry_run?: boolean
+          error?: string | null
+          event_signature?: string | null
+          external_id?: string | null
+          id?: string
+          last_error_at?: string | null
+          next_retry_at?: string | null
+          payload?: Json
+          processed?: boolean
+          processing_at?: string | null
+          received_at?: string
+          retry_count?: number
+          source?: string
+          topic?: string
+        }
+        Relationships: []
+      }
+      whatsapp_templates: {
+        Row: {
+          category: string
+          components: Json
+          created_at: string
+          id: string
+          language: string
+          meta_template_id: string | null
+          name: string
+          quality_rating: string | null
+          rejected_reason: string | null
+          samples: Json | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          category?: string
+          components?: Json
+          created_at?: string
+          id?: string
+          language?: string
+          meta_template_id?: string | null
+          name: string
+          quality_rating?: string | null
+          rejected_reason?: string | null
+          samples?: Json | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          components?: Json
+          created_at?: string
+          id?: string
+          language?: string
+          meta_template_id?: string | null
+          name?: string
+          quality_rating?: string | null
+          rejected_reason?: string | null
+          samples?: Json | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       contacts_with_stats: {
@@ -1638,6 +2048,13 @@ export type Database = {
       }
       cleanup_processed_message_queue: { Args: never; Returns: undefined }
       cleanup_processed_queues: { Args: never; Returns: undefined }
+      cleanup_webhook_data: {
+        Args: never
+        Returns: {
+          events_deleted: number
+          logs_deleted: number
+        }[]
+      }
       get_auth_user_id: { Args: never; Returns: string }
       get_company_branding: {
         Args: never
