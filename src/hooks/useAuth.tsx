@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -11,7 +11,10 @@ interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Keep a single context instance across hot reloads so providers and consumers stay in sync
+const globalAny = globalThis as unknown as { __vetmaisAuthContext?: React.Context<AuthContextType | undefined> };
+const AuthContext = globalAny.__vetmaisAuthContext ?? createContext<AuthContextType | undefined>(undefined);
+globalAny.__vetmaisAuthContext = AuthContext;
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
