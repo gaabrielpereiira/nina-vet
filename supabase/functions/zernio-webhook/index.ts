@@ -165,6 +165,15 @@ async function handleMessageReceived(supabase: any, supabaseUrl: string, supabas
   if (!message || message.platform !== 'whatsapp') return;
   if (message.direction !== 'incoming') return;
 
+  // Only accept messages for the clinic's connected number; other numbers on the same Zernio key are ignored.
+  const incomingAccountId = accountCtx?.accountId || accountCtx?.id || message.accountId;
+  const { data: ownSettings } = await supabase
+    .from('nina_settings').select('zernio_account_id').order('created_at').limit(1).maybeSingle();
+  if (ownSettings?.zernio_account_id && incomingAccountId && incomingAccountId !== ownSettings.zernio_account_id) {
+    console.log('[zernio-webhook] Ignorando mensagem de outra conta:', incomingAccountId);
+    return;
+  }
+
   const phoneNumber = normalizePhone(message.sender?.phoneNumber) || message.sender?.id;
   if (!phoneNumber) {
     console.warn('[zernio-webhook] message.received sem telefone do remetente, ignorando');
