@@ -324,6 +324,21 @@ const ChatInterface: React.FC = () => {
     );
   });
 
+  filteredConversations.sort((a, b) =>
+    new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()
+  );
+
+  const dayLabel = (iso?: string) => {
+    if (!iso) return 'Hoje';
+    const d = new Date(iso); const today = new Date();
+    const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((start(today) - start(d)) / 86400000);
+    if (diff === 0) return 'Hoje';
+    if (diff === 1) return 'Ontem';
+    if (diff < 7) return d.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^./, c => c.toUpperCase());
+    return d.toLocaleDateString('pt-BR');
+  };
+
   const filterCounts: Record<ChatFilter, number> = {
     all: conversations.filter(c => !c.archivedAt).length,
     nina: conversations.filter(c => !c.archivedAt && effectiveStatus(c.status) === 'nina').length,
@@ -781,14 +796,18 @@ const ChatInterface: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  <div className="flex justify-center my-6">
-                    <span className="px-4 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 text-xs font-medium rounded-full shadow-sm backdrop-blur-sm">Hoje</span>
-                  </div>
-
-                  {activeChat.messages.map((msg) => {
+                  {activeChat.messages.map((msg, idx) => {
                     const isOutgoing = msg.direction === MessageDirection.OUTGOING;
+                    const label = dayLabel(msg.sentAt);
+                    const showDay = idx === 0 || dayLabel(activeChat.messages[idx - 1].sentAt) !== label;
                     return (
-                      <div key={msg.id} className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'} group animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                      <React.Fragment key={msg.id}>
+                      {showDay && (
+                        <div className="flex justify-center my-6">
+                          <span className="px-4 py-1.5 bg-slate-800/80 border border-slate-700 text-slate-400 text-xs font-medium rounded-full shadow-sm backdrop-blur-sm">{label}</span>
+                        </div>
+                      )}
+                      <div className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'} group animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                         <div className={`flex flex-col max-w-[75%] ${isOutgoing ? 'items-end' : 'items-start'}`}>
                           <div 
                             className={`px-5 py-3 rounded-2xl shadow-md relative text-sm leading-relaxed ${
