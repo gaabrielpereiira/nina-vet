@@ -31,10 +31,16 @@ Deno.serve(async (req) => {
       data: { full_name: member.name },
     });
     if (invErr) {
-      const msg = /already|registered|exists/i.test(invErr.message)
-        ? "Este email já tem uma conta. A pessoa pode entrar direto pela tela de login (ou usar 'Esqueci a senha')."
-        : `Não foi possível enviar o convite: ${invErr.message}`;
-      return json({ error: msg }, 400);
+      if (/already|registered|exists/i.test(invErr.message)) {
+        // Conta já existe (ex.: convite reenviado): envia link de acesso para definir a senha
+        const { error: rErr } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+        if (rErr) return json({ error: `Não foi possível reenviar o link: ${rErr.message}` }, 400);
+        const { data: list } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const existing = list?.users?.find((x) => x.email?.toLowerCase() === email);
+        if (existing) await supabase.from("team_members").update({ user_id: existing.id }).eq("id", member.id);
+        return json({ success: true, resent: true });
+      }
+      return json({ error: `Não foi possível enviar o convite: ${invErr.message}` }, 400);
     }
 
     if (inv?.user?.id) {

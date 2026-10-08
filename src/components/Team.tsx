@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { UserPlus, Search, Loader2, X, Check, Edit2, Users, Settings, Trash2, ShieldCheck } from 'lucide-react';
+import { UserPlus, Search, Loader2, X, Check, Edit2, Users, Settings, Trash2, ShieldCheck, Mail } from 'lucide-react';
 import { Button } from './Button';
 import { api } from '../services/api';
 import { TeamMember, type Team as TeamType, type TeamFunction } from '../types';
@@ -109,6 +109,25 @@ const Team: React.FC = () => {
       toast.error('Erro ao atualizar configuração');
     } finally {
       setUpdatingRegistration(false);
+    }
+  };
+
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const handleResendInvite = async (memberId: string, email: string) => {
+    setResendingId(memberId);
+    try {
+      const { data, error } = await supabase.functions.invoke('invite-team-member', {
+        body: { member_id: memberId, redirect_to: `${window.location.origin}/auth/set-password` },
+      });
+      if (error || (data as any)?.error) {
+        let msg = (data as any)?.error || 'Não foi possível reenviar o convite.';
+        try { const b = await (error as any)?.context?.clone().json(); if (b?.error) msg = b.error; } catch { /* ignore */ }
+        toast.error(msg);
+      } else {
+        toast.success(`Link de acesso reenviado para ${email}`);
+      }
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -435,6 +454,14 @@ const Team: React.FC = () => {
                                             title="Editar membro"
                                         >
                                             <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleResendInvite(member.id, member.email)}
+                                            disabled={resendingId === member.id}
+                                            className="p-2 rounded-lg text-slate-500 hover:bg-slate-800 hover:text-cyan-400 transition-colors disabled:opacity-50"
+                                            title="Reenviar link de convite"
+                                        >
+                                            {resendingId === member.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                                         </button>
                                         <button 
                                             onClick={() => handleDeleteMember(member.id, member.name)}
