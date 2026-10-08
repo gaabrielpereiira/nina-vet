@@ -24,10 +24,9 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', ''),
-    );
-    if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
+    const { data: claimsData, error: userErr } = await supabase.auth.getClaims(authHeader.replace(/^Bearer\s+/i, ''));
+    if (userErr || !claimsData?.claims?.sub) return json({ error: 'Sua sessão expirou. Saia e entre novamente no sistema.' }, 401);
+    const userData = { user: { id: claimsData.claims.sub as string, email: (claimsData.claims as any).email as string | undefined } };
 
     try {
       await getVetsoftAccessToken(supabase);
