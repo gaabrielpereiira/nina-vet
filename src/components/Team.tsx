@@ -116,7 +116,7 @@ const Team: React.FC = () => {
     e.preventDefault();
     
     try {
-      await api.createTeamMember({
+      const created = await api.createTeamMember({
         name: formData.name,
         email: formData.email,
         role: formData.role as 'agent' | 'admin' | 'manager',
@@ -125,7 +125,16 @@ const Team: React.FC = () => {
         weight: formData.weight
       });
 
-      toast.success('Membro convidado com sucesso!');
+      const { data: invData, error: invError } = await supabase.functions.invoke('invite-team-member', {
+        body: { member_id: created.id, redirect_to: `${window.location.origin}/auth/set-password` },
+      });
+      if (invError || (invData as any)?.error) {
+        let msg = (invData as any)?.error || 'Membro cadastrado, mas o email de convite não foi enviado.';
+        try { const b = await (invError as any)?.context?.clone().json(); if (b?.error) msg = b.error; } catch { /* ignore */ }
+        toast.error(msg);
+      } else {
+        toast.success(`Convite enviado para ${formData.email}!`);
+      }
       setShowModal(false);
       setFormData({ name: '', email: '', role: 'agent', team_id: '', function_id: '', weight: 1 });
       await loadAllData();
