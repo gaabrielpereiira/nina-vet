@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, MessageSquare, Users, Settings as SettingsIcon, LogOut, ShieldCheck, Calendar, Kanban } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Users, Settings as SettingsIcon, LogOut, ShieldCheck, Calendar, Kanban, Zap } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,6 +7,7 @@ import { Sidebar, SidebarBody, SidebarLink, useSidebar } from '@/components/ui/s
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { NotificationsBell } from './NotificationsBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import vetLogoAsset from '@/assets/logo-vetmais.jpeg.asset.json';
 const viaIcon = vetLogoAsset.url;
@@ -19,6 +20,7 @@ const menuItems = [
   { id: 'chat', label: 'Chat Ao Vivo', icon: MessageSquare },
   { id: 'contacts', label: 'Contatos', icon: Users },
   { id: 'scheduling', label: 'Agendamentos', icon: Calendar },
+  { id: 'automations', label: 'Automações', icon: Zap },
   { id: 'team', label: 'Equipe', icon: ShieldCheck },
   { id: 'settings', label: 'Configurações', icon: SettingsIcon },
 ];
@@ -130,6 +132,8 @@ const SidebarContent = () => {
           />
         </motion.div>
       )}
+
+      <NotificationsBell collapsed={!open} />
 
       {/* Theme switch */}
       <div className={`pb-3 flex ${open ? 'justify-start' : 'justify-center'}`}>

@@ -1,3 +1,4 @@
+import { getNinaAutomationBlockReason } from "../_shared/nina-automation.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getZernioApiKey } from "../_shared/zernio.ts";
@@ -153,7 +154,8 @@ serve(async (req) => {
             settingsCache[cacheKey] = settings;
           }
 
-          await sendMessage(supabase, settings, item);
+          const sent = await sendMessage(supabase, settings, item);
+          if (!sent) continue;
           
           // Mark as completed
           await supabase
@@ -232,7 +234,7 @@ async function sendMessage(supabase: any, settings: any, queueItem: any) {
 
   const { data: conversation } = await supabase
     .from('conversations')
-    .select('id, zernio_conversation_id')
+    .select('id, zernio_conversation_id, status, ai_paused, archived_at')
     .eq('id', queueItem.conversation_id)
     .maybeSingle();
 
@@ -245,13 +247,45 @@ async function sendMessage(supabase: any, settings: any, queueItem: any) {
     'Content-Type': 'application/json',
   };
 
+  // Read the switch immediately before dispatch, including for already queued
+  // text/audio/chunks. Human replies remain independent of the Nina switch.
+  if (queueItem.from_type === 'nina') {
+    const globalBlockReason = await getNinaAutomationBlockReason(supabase);
+    const blockReason = globalBlockReason || (
+      !conversation || conversation.status !== 'nina' || conversation.ai_paused || conversation.archived_at
+        ? 'Nina paused for conversation'
+        : null
+    );
+    if (blockReason) {
+      const { error } = await supabase
+        .from('send_queue')
+        .update({ status: 'failed', error_message: blockReason })
+        .eq('id', queueItem.id);
+      if (error) throw error;
+      if (queueItem.message_id) {
+        const { error: messageError } = await supabase
+          .from('messages')
+          .update({ status: 'failed' })
+          .eq('id', queueItem.message_id);
+        if (messageError) throw messageError;
+      }
+      return false;
+    }
+  }
+
   let response: Response;
   let zernioConversationId = conversation?.zernio_conversation_id as string | undefined;
 
   if (zernioConversationId) {
     // Já existe uma conversa aberta na Zernio: manda direto nela.
     const body: any = { accountId: settings.zernio_account_id };
-    if (queueItem.content) body.message = queueItem.content;
+    const template = queueItem.metadata?.template;
+    if (template?.name) {
+      body.templateName = template.name;
+      body.templateLanguage = template.language || 'pt_BR';
+      body.templateParams = Object.keys(template.variables || {}).sort((a, b) => Number(a) - Number(b))
+        .map(key => String(template.variables[key] ?? ''));
+    } else if (queueItem.content) body.message = queueItem.content;
     if (queueItem.media_url) {
       body.attachmentUrl = queueItem.media_url;
       body.attachmentType = attachmentType;
@@ -272,6 +306,15 @@ async function sendMessage(supabase: any, settings: any, queueItem: any) {
       message: queueItem.content,
       category: 'utility',
     };
+    const template = queueItem.metadata?.template;
+    if (template?.name) {
+      delete body.message;
+      delete body.category;
+      body.templateName = template.name;
+      body.templateLanguage = template.language || 'pt_BR';
+      body.templateParams = Object.keys(template.variables || {}).sort((a, b) => Number(a) - Number(b))
+        .map(key => String(template.variables[key] ?? ''));
+    }
 
     response = await fetch(`${ZERNIO_API}/inbox/conversations`, {
       method: 'POST',
@@ -342,4 +385,6 @@ async function sendMessage(supabase: any, settings: any, queueItem: any) {
     .from('conversations')
     .update({ last_message_at: new Date().toISOString() })
     .eq('id', queueItem.conversation_id);
+
+  return true;
 }

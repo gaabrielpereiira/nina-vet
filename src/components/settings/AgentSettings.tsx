@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import PromptGeneratorSheet from './PromptGeneratorSheet';
 import { DEFAULT_NINA_PROMPT } from '@/prompts/default-nina-prompt';
 import { useAuth } from '@/hooks/useAuth';
+import { NinaAutomationToggle } from '../NinaAutomationToggle';
 import {
   Tooltip,
   TooltipContent,
@@ -88,6 +89,8 @@ const AgentSettings = forwardRef<AgentSettingsRef, {}>((props, ref) => {
       const { data, error } = await supabase
         .from('nina_settings')
         .select('*')
+        .order('created_at')
+        .order('id')
         .limit(1)
         .maybeSingle();
 
@@ -133,8 +136,6 @@ const AgentSettings = forwardRef<AgentSettingsRef, {}>((props, ref) => {
         .from('nina_settings')
         .update({
           system_prompt_override: settings.system_prompt_override,
-          is_active: settings.is_active,
-          auto_response_enabled: settings.auto_response_enabled,
           ai_model_mode: settings.ai_model_mode,
           message_breaking_enabled: settings.message_breaking_enabled,
           business_hours_start: settings.business_hours_start,
@@ -415,50 +416,8 @@ const AgentSettings = forwardRef<AgentSettingsRef, {}>((props, ref) => {
 
           {/* Toggles em grid 2x2 com tooltips */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-950/50 border border-slate-800">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-sm text-slate-300 cursor-help flex items-center gap-1.5">
-                    Agente Ativo
-                    <Info className="w-3 h-3 text-slate-500" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-[200px]">Liga ou desliga o agente de IA completamente. Quando desativado, nenhuma resposta automática será enviada.</p>
-                </TooltipContent>
-              </Tooltip>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.is_active}
-                  onChange={(e) => setSettings({ ...settings, is_active: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500/50 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
-              </label>
-            </div>
-
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-950/50 border border-slate-800">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="text-sm text-slate-300 cursor-help flex items-center gap-1.5">
-                    Resposta Automática
-                    <Info className="w-3 h-3 text-slate-500" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-xs max-w-[200px]">Quando ativo, o agente responde automaticamente sem necessidade de aprovação humana.</p>
-                </TooltipContent>
-              </Tooltip>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.auto_response_enabled}
-                  onChange={(e) => setSettings({ ...settings, auto_response_enabled: e.target.checked })}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500/50 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
-              </label>
+            <div className="col-span-2">
+              <NinaAutomationToggle />
             </div>
 
             <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-950/50 border border-slate-800">

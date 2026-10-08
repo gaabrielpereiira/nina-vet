@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Search, MoreVertical, Phone, Paperclip, Send, Check, CheckCheck, 
@@ -13,6 +14,8 @@ import { toast } from 'sonner';
 import { useCompanySettings } from '@/hooks/useCompanySettings';
 import { api } from '@/services/api';
 import { TagSelector } from './TagSelector';
+import { NinaAutomationToggle } from './NinaAutomationToggle';
+import { useNinaAutomation } from '@/hooks/useNinaAutomation';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 type ChatFilter = 'all' | 'nina' | 'human' | 'archived';
@@ -20,6 +23,9 @@ type ChatFilter = 'all' | 'nina' | 'human' | 'archived';
 const ChatInterface: React.FC = () => {
   const { conversations, loading, sendMessage, updateStatus, markAsRead, assignConversation, setAiPaused, archiveConversation, unarchiveConversation } = useConversations();
   const { sdrName, companyName } = useCompanySettings();
+  const automation = useNinaAutomation();
+  const ninaGloballyPaused = automation.available && !automation.enabled;
+  const [searchParams] = useSearchParams();
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [showProfileInfo, setShowProfileInfo] = useState(true);
@@ -61,6 +67,11 @@ const ChatInterface: React.FC = () => {
     if (mime.startsWith('video/')) return 'video';
     return 'document';
   };
+
+  useEffect(() => {
+    const requestedId = searchParams.get('conversation');
+    if (requestedId && conversations.some(c => c.id === requestedId)) setSelectedChatId(requestedId);
+  }, [searchParams, conversations]);
 
   const activeChat = conversations.find(c => c.id === selectedChatId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -289,8 +300,11 @@ const ChatInterface: React.FC = () => {
 
   const handleStatusChange = async (status: ConversationStatus) => {
     if (!activeChat) return;
+    if (status === 'nina' && ninaGloballyPaused) return;
     await updateStatus(activeChat.id, status);
   };
+
+  const effectiveStatus = (status: ConversationStatus): ConversationStatus => ninaGloballyPaused ? 'human' : status;
 
   const filteredConversations = conversations.filter(chat => {
     const isArchived = !!chat.archivedAt;
@@ -298,8 +312,8 @@ const ChatInterface: React.FC = () => {
       if (!isArchived) return false;
     } else {
       if (isArchived) return false;
-      if (chatFilter === 'nina' && chat.status !== 'nina') return false;
-      if (chatFilter === 'human' && chat.status !== 'human') return false;
+      if (chatFilter === 'nina' && effectiveStatus(chat.status) !== 'nina') return false;
+      if (chatFilter === 'human' && effectiveStatus(chat.status) !== 'human') return false;
     }
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -312,8 +326,8 @@ const ChatInterface: React.FC = () => {
 
   const filterCounts: Record<ChatFilter, number> = {
     all: conversations.filter(c => !c.archivedAt).length,
-    nina: conversations.filter(c => !c.archivedAt && c.status === 'nina').length,
-    human: conversations.filter(c => !c.archivedAt && c.status === 'human').length,
+    nina: conversations.filter(c => !c.archivedAt && effectiveStatus(c.status) === 'nina').length,
+    human: conversations.filter(c => !c.archivedAt && effectiveStatus(c.status) === 'human').length,
     archived: conversations.filter(c => !!c.archivedAt).length,
   };
 
@@ -323,7 +337,7 @@ const ChatInterface: React.FC = () => {
       human: { label: 'Humano', icon: User, color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
       paused: { label: 'Pausado', icon: Pause, color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' }
     };
-    const { label, icon: Icon, color } = config[status];
+    const { label, icon: Icon, color } = config[effectiveStatus(status)];
     return (
       <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border flex items-center gap-1 ${color}`}>
         <Icon className="w-3 h-3" />
@@ -519,6 +533,7 @@ const ChatInterface: React.FC = () => {
         {/* Search Header */}
         <div className="p-4 border-b border-slate-800/50">
           <h2 className="text-lg font-bold text-white mb-4 px-1">Conversas</h2>
+          <div className="mb-4"><NinaAutomationToggle /></div>
           <div className="relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
             <input 
@@ -664,9 +679,10 @@ const ChatInterface: React.FC = () => {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className={`text-slate-400 hover:text-white ${activeChat.status === 'nina' ? 'bg-violet-500/20 text-violet-400' : ''}`}
+                  className={`text-slate-400 hover:text-white ${!ninaGloballyPaused && activeChat.status === 'nina' ? 'bg-violet-500/20 text-violet-400' : ''}`}
+                  disabled={ninaGloballyPaused}
                   onClick={() => handleStatusChange('nina')}
-                  title={`Ativar ${sdrName} (IA)`}
+                  title={ninaGloballyPaused ? 'Ative primeiro a Nina automática na chave geral' : `Ativar ${sdrName} (IA)`}
                 >
                   <Bot className="w-5 h-5" />
                 </Button>
@@ -719,6 +735,12 @@ const ChatInterface: React.FC = () => {
               </div>
             </div>
 
+            {ninaGloballyPaused && (
+              <div role="status" className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 text-xs text-amber-200">
+                <strong>Somente humanos.</strong> A Nina está pausada em todas as conversas. Você pode continuar respondendo normalmente.
+              </div>
+            )}
+
             {/* AI Paused Banner - operador respondeu pelo app do celular (echo) */}
             {activeChat.aiPaused && (
               <div className="px-6 py-3 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between gap-3 z-10">
@@ -738,6 +760,8 @@ const ChatInterface: React.FC = () => {
                 <Button
                   size="sm"
                   variant="secondary"
+                  disabled={ninaGloballyPaused}
+                  title={ninaGloballyPaused ? 'Ative primeiro a Nina automática na chave geral' : undefined}
                   onClick={() => setAiPaused(activeChat.id, false, null)}
                   className="bg-amber-500/20 text-amber-100 hover:bg-amber-500/30 border border-amber-500/40"
                 >

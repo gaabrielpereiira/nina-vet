@@ -3,3 +3,21 @@ project_id = "nqeatirkonhboybadypl"
 [functions]
   [functions.auth-email-hook]
     verify_jwt = false
+
+[functions.automation-runner]
+verify_jwt = false
+
+[functions.automation-scheduler]
+verify_jwt = false
+
+[functions.wc-receiver]
+verify_jwt = false
+
+[functions.simulate-wc-webhook]
+verify_jwt = false
+
+[functions.webhook-cleanup]
+verify_jwt = false
+
+[functions.sync-whatsapp-templates]
+verify_jwt = false

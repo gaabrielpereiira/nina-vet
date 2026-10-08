@@ -1,3 +1,4 @@
+import { getNinaAutomationBlockReason } from "../_shared/nina-automation.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -144,6 +145,16 @@ serve(async (req) => {
 
     for (const item of queueItems) {
       try {
+        const globalBlockReason = await getNinaAutomationBlockReason(supabase);
+        if (globalBlockReason) {
+          const { error } = await supabase
+            .from('nina_processing_queue')
+            .update({ status: 'completed', processed_at: new Date().toISOString(), error_message: globalBlockReason })
+            .eq('id', item.id);
+          if (error) throw error;
+          continue;
+        }
+
         // Get user_id from conversation to fetch correct settings
         const { data: conversation } = await supabase
           .from('conversations')

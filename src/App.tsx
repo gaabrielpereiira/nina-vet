@@ -8,6 +8,7 @@ import Settings from './components/Settings';
 import Team from './components/Team';
 import Scheduling from './components/Scheduling';
 import Kanban from './components/Kanban';
+import Automations from './components/Automations';
 import Auth from './pages/Auth';
 import WhatsAppCallback from './pages/WhatsAppCallback';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -84,6 +85,7 @@ const App: React.FC = () => {
               <Route path="/chat" element={<ChatInterface />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/scheduling" element={<Scheduling />} />
+              <Route path="/automations" element={<Automations />} />
               <Route path="/team" element={<Team />} />
               <Route path="/settings" element={<Settings />} />
             </Route>
