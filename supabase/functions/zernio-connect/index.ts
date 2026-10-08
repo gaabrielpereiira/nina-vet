@@ -91,9 +91,15 @@ serve(async (req) => {
     let profileId = settings.zernio_profile_id as string | null;
 
     if (!profileId) {
-      const listRes = await zernio('/profiles?name=nina-vet');
+      // Reaproveita perfil existente (evita estourar limite do plano gratuito da Zernio).
+      const listRes = await zernio('/profiles');
       const listJson = await listRes.json();
-      profileId = listJson?.profiles?.[0]?._id || null;
+      const profiles: any[] = listJson?.profiles || [];
+      const pick =
+        profiles.find((p) => /vet/i.test(p.name || '') && (p.accountCount ?? 0) > 0) ||
+        profiles.find((p) => /vet/i.test(p.name || '')) ||
+        profiles.find((p) => p.name === 'nina-vet');
+      profileId = pick?._id || null;
 
       if (!profileId) {
         const createRes = await zernio('/profiles', {
