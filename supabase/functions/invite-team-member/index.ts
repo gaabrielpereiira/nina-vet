@@ -11,8 +11,9 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const token = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
     if (!token) return json({ error: "Autenticação necessária" }, 401);
-    const { data: u, error: uErr } = await supabase.auth.getUser(token);
-    if (uErr || !u?.user) return json({ error: "Sessão inválida" }, 401);
+    const { data: c, error: uErr } = await supabase.auth.getClaims(token);
+    if (uErr || !c?.claims?.sub) return json({ error: "Sua sessão expirou. Saia e entre novamente no sistema." }, 401);
+    const u = { user: { id: c.claims.sub as string } };
     const { data: role } = await supabase.from("user_roles").select("role")
       .eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
     if (!role) return json({ error: "Apenas administradores podem convidar membros." }, 403);
