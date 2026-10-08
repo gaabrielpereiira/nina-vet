@@ -61,13 +61,13 @@ serve(async (req) => {
     if (internal) {
       userId = typeof body?.user_id === 'string' ? body.user_id : null;
     } else {
-      const authHeader = req.headers.get('Authorization');
-      if (!authHeader) return json({ error: 'Autenticação necessária' }, 401);
-      const { data: userData, error: userErr } = await supabase.auth.getUser(
-        authHeader.replace('Bearer ', ''),
-      );
-      if (userErr || !userData?.user) return json({ error: 'Token inválido' }, 401);
-      userId = userData.user.id;
+      const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
+      if (!token) return json({ error: 'Autenticação necessária' }, 401);
+      const { data: c, error: cErr } = await supabase.auth.getClaims(token);
+      if (cErr || !c?.claims?.sub) {
+        return json({ error: 'Sua sessão expirou. Saia e entre novamente no sistema.' }, 401);
+      }
+      userId = c.claims.sub as string;
     }
 
     const triggeredBy = body?.triggered_by === 'manual' ? 'manual' : 'cron';
