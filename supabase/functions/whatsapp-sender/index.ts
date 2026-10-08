@@ -327,6 +327,13 @@ async function sendMessage(supabase: any, settings: any, queueItem: any) {
 
   if (!response.ok) {
     console.error('[Sender] Zernio API error:', responseData);
+    // Conversa antiga/inválida na Zernio: limpa o ID para a próxima tentativa abrir uma nova.
+    if (zernioConversationId && /conversation not found/i.test(String(responseData?.error || ''))) {
+      await supabase
+        .from('conversations')
+        .update({ zernio_conversation_id: null })
+        .eq('id', queueItem.conversation_id);
+    }
     throw new Error(responseData.error || 'Zernio API error');
   }
 

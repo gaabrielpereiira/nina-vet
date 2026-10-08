@@ -15,6 +15,13 @@
       "when": 1791485047862,
       "tag": "0001_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791485696995,
+      "tag": "0002_staff_send_queue_access",
+      "breakpoints": true
     }
   ]
 }
