@@ -317,6 +317,7 @@ export interface UIConversation {
   aiPaused: boolean;
   aiPausedReason: string | null;
   archivedAt: string | null;
+  lastMessageAt?: string;
 }
 
 export interface UIMessage {
@@ -333,6 +334,7 @@ export interface UIMessage {
   isSticker: boolean;
   transcription: string | null;
   whatsappMessageId: string | null;
+  sentAt?: string;
 }
 
 
@@ -371,7 +373,8 @@ export function transformDBToUIConversation(
     notes: conv.contact?.notes || null,
     aiPaused: conv.ai_paused ?? false,
     aiPausedReason: conv.ai_paused_reason ?? null,
-    archivedAt: conv.archived_at ?? null
+    archivedAt: conv.archived_at ?? null,
+    lastMessageAt: lastMsg?.sent_at || conv.last_message_at
   };
 }
 
@@ -390,7 +393,8 @@ export function transformDBToUIMessage(msg: DBMessage): UIMessage {
     fileName: meta.file_name ?? null,
     isSticker: meta.is_sticker === true,
     transcription: meta.transcription ?? null,
-    whatsappMessageId: msg.whatsapp_message_id
+    whatsappMessageId: msg.whatsapp_message_id,
+    sentAt: msg.sent_at
   };
 }
 
