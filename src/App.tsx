@@ -26,13 +26,6 @@ const AppLayout: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const { isComplete, hasSeenWizard, loading } = useOnboardingStatus();
 
-  // Show wizard automatically on first load if not complete and never seen
-  useEffect(() => {
-    if (!loading && !isComplete && !hasSeenWizard) {
-      setShowOnboarding(true);
-    }
-  }, [loading, isComplete, hasSeenWizard]);
-
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
       {/* Background Ambient Glows */}
