@@ -1971,6 +1971,7 @@ export type Database = {
       }
     }
     Functions: {
+      activate_my_team_membership: { Args: never; Returns: undefined }
       claim_message_processing_batch: {
         Args: { p_limit?: number }
         Returns: {
