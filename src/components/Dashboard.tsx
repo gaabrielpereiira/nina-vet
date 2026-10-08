@@ -3,14 +3,7 @@ import { Activity, DollarSign, MessageSquare, Users, Loader2, TrendingUp, Trendi
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { StatMetric } from '../types';
 import { api } from '../services/api';
-import { OnboardingBanner } from './OnboardingBanner';
 import { SystemHealthCard } from './SystemHealthCard';
-import { useOutletContext } from 'react-router-dom';
-
-interface OutletContext {
-  showOnboarding: boolean;
-  setShowOnboarding: (show: boolean) => void;
-}
 
 type PeriodFilter = 'today' | '7days' | '30days';
 
@@ -31,7 +24,6 @@ const Dashboard: React.FC = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodFilter>('today');
-  const { setShowOnboarding } = useOutletContext<OutletContext>();
 
   useEffect(() => {
     const loadData = async () => {
@@ -94,9 +86,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="p-6 space-y-8 overflow-y-auto h-full bg-slate-950 text-slate-50 custom-scrollbar">
-      {/* Onboarding Banner */}
-      <OnboardingBanner onOpenWizard={() => setShowOnboarding(true)} />
-
       {/* System Health Card */}
       <SystemHealthCard />
 

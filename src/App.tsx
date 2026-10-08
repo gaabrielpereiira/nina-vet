@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -25,13 +25,6 @@ import { useOnboardingStatus } from './hooks/useOnboardingStatus';
 const AppLayout: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const { isComplete, hasSeenWizard, loading } = useOnboardingStatus();
-
-  // Show wizard automatically on first load if not complete and never seen
-  useEffect(() => {
-    if (!loading && !isComplete && !hasSeenWizard) {
-      setShowOnboarding(true);
-    }
-  }, [loading, isComplete, hasSeenWizard]);
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
