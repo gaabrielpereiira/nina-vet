@@ -77,7 +77,13 @@ export interface Conversation {
 
 // Metadata for AI-created appointments
 export interface AppointmentMetadata {
-  source?: 'nina_ai' | 'manual';
+  source?: 'nina_ai' | 'manual' | 'vetsoft';
+  vetsoft?: {
+    patient_name: string | null;
+    tutor_name: string | null;
+    procedure_name: string | null;
+    original_title: string;
+  };
   conversation_id?: string;
   created_at_conversation?: string;
 }
@@ -121,6 +127,9 @@ export interface Appointment {
     phone_number: string;
   };
   metadata?: AppointmentMetadata;
+  vetsoft_event_id?: number | null;
+  animal?: { id: string; name: string };
+  procedure?: { id: string; name: string };
 }
 
 export interface Deal {

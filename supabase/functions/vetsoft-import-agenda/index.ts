@@ -6,7 +6,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getVetsoftAccessToken, listAgendaEvents } from "../_shared/vetsoft.ts";
+import { getVetsoftAccessToken, listAgendaEvents, listPets, listTutors, listServiceTypes } from "../_shared/vetsoft.ts";
 import { startSyncRun, finishSyncRun, isInternalCall } from "../_shared/sync-log.ts";
 
 const corsHeaders = {
@@ -106,18 +106,44 @@ serve(async (req) => {
     }
 
     // Índices para vincular tutor e pet já importados.
-    const [{ data: contacts }, { data: animals }, { data: existing }] = await Promise.all([
-      supabase.from('contacts').select('id, vetsoft_client_id').not('vetsoft_client_id', 'is', null),
-      supabase.from('animals').select('id, vetsoft_animal_id').not('vetsoft_animal_id', 'is', null),
-      supabase.from('appointments').select('id, vetsoft_event_id').not('vetsoft_event_id', 'is', null),
+    const indexes = await Promise.all([
+      supabase.from('contacts').select('id, name, vetsoft_client_id').not('vetsoft_client_id', 'is', null),
+      supabase.from('animals').select('id, name, vetsoft_animal_id').not('vetsoft_animal_id', 'is', null),
+      supabase.from('appointments').select('id, metadata, vetsoft_event_id').not('vetsoft_event_id', 'is', null),
     ]);
+    for (const result of indexes) if (result.error) throw result.error;
+    const [contacts, animals, existing] = indexes.map(result => result.data || []);
 
     const contactByExternal = new Map<number, string>();
     for (const c of contacts || []) contactByExternal.set(Number(c.vetsoft_client_id), c.id);
     const animalByExternal = new Map<number, string>();
     for (const a of animals || []) animalByExternal.set(Number(a.vetsoft_animal_id), a.id);
-    const apptByExternal = new Map<number, string>();
-    for (const a of existing || []) apptByExternal.set(Number(a.vetsoft_event_id), a.id);
+    const apptByExternal = new Map<number, any>();
+    for (const a of existing || []) apptByExternal.set(Number(a.vetsoft_event_id), a);
+    const tutorNames = new Map<number, string>(contacts.map(c => [Number(c.vetsoft_client_id), c.name]));
+    const patientNames = new Map<number, string>(animals.map(a => [Number(a.vetsoft_animal_id), a.name]));
+    const serviceTypes = new Map<number, string>();
+    const warnings: string[] = [];
+
+    // Consult the existing VetSoft list endpoints only when neither the agenda
+    // nor the imported records supply a name. Failure does not discard events.
+    if (events.some(ev => !ev.patient_name && ev.animal_external_id != null && !patientNames.get(ev.animal_external_id))) {
+      try {
+        const { pets } = await listPets(supabase);
+        for (const pet of pets) patientNames.set(pet.external_id, pet.name);
+      } catch { warnings.push('Não foi possível complementar os nomes dos pacientes no VetSoft.'); }
+    }
+    if (events.some(ev => !ev.tutor_name && ev.client_external_id != null && !tutorNames.get(ev.client_external_id))) {
+      try {
+        const { tutors } = await listTutors(supabase);
+        for (const tutor of tutors) tutorNames.set(tutor.external_id, tutor.name);
+      } catch { warnings.push('Não foi possível complementar os nomes dos tutores no VetSoft.'); }
+    }
+    if (events.some(ev => !ev.procedure_name && ev.service_type_external_id != null)) {
+      try {
+        for (const type of await listServiceTypes(supabase)) serviceTypes.set(Number(type.id), type.name);
+      } catch { warnings.push('Não foi possível consultar os tipos de atendimento no VetSoft.'); }
+    }
 
     const now = new Date().toISOString();
     const toInsert: any[] = [];
@@ -126,6 +152,7 @@ serve(async (req) => {
     let withoutTutor = 0;
 
     for (const ev of events) {
+      const known = apptByExternal.get(Number(ev.external_id));
       const { date, time } = splitLocal(ev.starts_at, timeZone);
       const contactId = ev.client_external_id != null
         ? contactByExternal.get(Number(ev.client_external_id)) ?? null
@@ -150,11 +177,20 @@ serve(async (req) => {
         vetsoft_event_id: ev.external_id,
         vetsoft_synced_at: now,
         vetsoft_sync_error: null,
+        metadata: {
+          ...(known?.metadata || {}),
+          source: 'vetsoft',
+          vetsoft: {
+            patient_name: ev.patient_name || patientNames.get(ev.animal_external_id) || known?.metadata?.vetsoft?.patient_name || null,
+            tutor_name: ev.tutor_name || tutorNames.get(ev.client_external_id) || known?.metadata?.vetsoft?.tutor_name || null,
+            procedure_name: ev.procedure_name || serviceTypes.get(ev.service_type_external_id) || known?.metadata?.vetsoft?.procedure_name || null,
+            original_title: ev.title,
+          },
+        },
         user_id: userId,
       };
 
-      const known = apptByExternal.get(Number(ev.external_id));
-      if (known) toUpdate.push({ id: known, ...row });
+      if (known) toUpdate.push({ id: known.id, ...row });
       else toInsert.push(row);
     }
 
@@ -191,6 +227,7 @@ serve(async (req) => {
       cancelled,
       without_tutor: withoutTutor,
       errors,
+      warnings,
     });
   } catch (e: any) {
     console.error('[vetsoft-import-agenda]', e);

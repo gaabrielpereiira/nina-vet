@@ -478,6 +478,10 @@ export interface VetsoftAgendaItem {
   title: string;
   description: string | null;
   status: string | null;
+  patient_name: string | null;
+  tutor_name: string | null;
+  procedure_name: string | null;
+  service_type_external_id: number | null;
 }
 
 const EVENT_ID_FIELDS = ['cod_evento', 'cod_agenda', 'id'];
@@ -489,6 +493,24 @@ function nestedId(raw: any, keys: string[], fields: string[]): number | null {
   for (const key of keys) {
     const id = toNumber(pickField(raw?.[key], fields));
     if (id != null) return id;
+  }
+  return null;
+}
+
+// Agenda responses may contain flattened names or embedded VetSoft records.
+// Only accept text: never display an object or an external numeric ID as a name.
+function agendaText(raw: any, fields: string[], nestedKeys: string[] = [], nestedFields = fields): string | null {
+  for (const field of fields) {
+    const value = raw?.[field];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  for (const key of nestedKeys) {
+    const value = raw?.[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (value && typeof value === 'object') {
+      const text = agendaText(value, nestedFields);
+      if (text) return text;
+    }
   }
   return null;
 }
@@ -507,15 +529,19 @@ function normalizeAgendaItem(raw: any): VetsoftAgendaItem | null {
     ? Math.max(15, Math.round((endDate.getTime() - startDate.getTime()) / 60000))
     : 30;
 
-  const clientId = toNumber(pickField(raw, ['cod_cliente', 'cod_client']))
+  const clientId = toNumber(pickField(raw, ['cod_cliente', 'cod_client', 'cod_tutor']))
     ?? nestedId(raw, ['cliente', 'tutor', 'client'], CLIENT_ID_FIELDS);
   const animalId = toNumber(pickField(raw, ['cod_animal']))
     ?? nestedId(raw, ['animal', 'pet'], ANIMAL_ID_FIELDS);
 
-  const titleRaw = pickField(raw, EVENT_TITLE_FIELDS);
-  const nestedTitle = typeof raw?.tipo_atendimento === 'object'
-    ? pickField(raw.tipo_atendimento, ['nom_tipo_atendimento', 'des_tipo_atendimento', 'nome', 'name'])
-    : null;
+  const patientName = agendaText(raw, ['nom_animal', 'nom_paciente', 'patient_name', 'pet_name'], ['animal', 'pet', 'paciente'], ANIMAL_NAME_FIELDS);
+  const tutorName = agendaText(raw, ['nom_cliente', 'nom_tutor', 'nom_pessoa', 'tutor_name', 'client_name'], ['cliente', 'tutor', 'client'], CLIENT_NAME_FIELDS);
+  const procedureFields = ['nom_procedimento', 'des_procedimento', 'nom_servico', 'des_servico', 'procedure_name', 'nome', 'name', 'descricao'];
+  const procedureNames = ['procedimentos', 'servicos', 'procedures', 'services'].flatMap(key =>
+    Array.isArray(raw?.[key]) ? raw[key].map((item: any) => agendaText(item, procedureFields, ['procedimento', 'servico', 'service'], procedureFields)).filter(Boolean) : []);
+  const procedureName = [...new Set(procedureNames)].join(', ') || agendaText(raw, procedureFields.slice(0, 5), ['procedimento', 'servico', 'procedure', 'service'], procedureFields)
+    || agendaText(raw, ['nom_tipo_atendimento', 'des_tipo_atendimento'], ['tipo_atendimento', 'service_type'], ['nom_tipo_atendimento', 'des_tipo_atendimento', 'nome', 'name']);
+  const title = agendaText(raw, EVENT_TITLE_FIELDS) || procedureName || 'Agendamento VetSoft';
 
   return {
     external_id: id,
@@ -523,7 +549,12 @@ function normalizeAgendaItem(raw: any): VetsoftAgendaItem | null {
     animal_external_id: animalId ?? null,
     starts_at: startDate.toISOString(),
     duration,
-    title: String(titleRaw || nestedTitle || 'Agendamento VetSoft').trim(),
+    title,
+    patient_name: patientName,
+    tutor_name: tutorName,
+    procedure_name: procedureName,
+    service_type_external_id: toNumber(pickField(raw, ['cod_tipo_atendimento', 'cod_tipo_atentimento']))
+      ?? nestedId(raw, ['tipo_atendimento', 'service_type'], ['cod_tipo_atendimento', 'cod_tipo_atentimento', 'id']),
     description: (() => {
       const d = pickField(raw, ['obs_evento', 'des_observacao', 'observacao', 'obs']);
       return d ? String(d).trim() || null : null;

@@ -11,6 +11,7 @@ export interface AgendaSyncResult {
   cancelled: number;
   without_tutor: number;
   errors: string[];
+  warnings?: string[];
 }
 
 export function useVetsoftAgendaSync() {

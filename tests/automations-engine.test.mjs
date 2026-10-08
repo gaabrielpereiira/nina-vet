@@ -25,7 +25,7 @@ INSERT INTO nina_settings DEFAULT VALUES;
 async function fixture() {
   const db = new PGlite();
   await db.exec(bootstrap);
-  await db.exec(readFileSync(new URL('../supabase/migrations/20261008160347_import_automations_module.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('../drizzle/migrations/0000_import_automations_module.sql', import.meta.url), 'utf8'));
   const client = postgrest(db);
   const { context: { getNinaAutomationBlockReason } } = loadEdge('_shared/nina-automation.ts');
   const runner = loadEdge('automation-runner/index.ts', { getNinaAutomationBlockReason }).context;

@@ -35,7 +35,7 @@ GRANT SELECT, INSERT, UPDATE ON public.deals, public.contacts, public.pipeline_s
 async function migrated() {
   const db = new PGlite();
   await db.exec(bootstrap);
-  await db.exec(readFileSync(new URL('../supabase/migrations/20261008160347_import_automations_module.sql', import.meta.url), 'utf8'));
+  await db.exec(readFileSync(new URL('../drizzle/migrations/0000_import_automations_module.sql', import.meta.url), 'utf8'));
   return db;
 }
 

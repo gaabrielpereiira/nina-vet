@@ -638,7 +638,9 @@ export const api = {
       .from('appointments')
       .select(`
         *,
-        contact:contacts(id, name, phone_number)
+        contact:contacts(id, name, phone_number),
+        animal:animals(id, name),
+        procedure:procedures(id, name)
       `)
       .order('date', { ascending: true })
       .order('time', { ascending: true });
@@ -667,7 +669,10 @@ export const api = {
         name: a.contact.name,
         phone_number: a.contact.phone_number
       } : undefined,
-      metadata: a.metadata as Appointment['metadata']
+      metadata: a.metadata as Appointment['metadata'],
+      vetsoft_event_id: a.vetsoft_event_id,
+      animal: a.animal ?? undefined,
+      procedure: a.procedure ?? undefined,
     }));
   },
 

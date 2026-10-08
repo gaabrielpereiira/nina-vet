@@ -23,7 +23,7 @@ compartilhadas pela clínica, como no módulo de origem.
 
 ## Instalação no projeto Supabase da Nina
 
-1. Aplicar `supabase/migrations/20261008160347_import_automations_module.sql`.
+1. Aplicar `drizzle/migrations/0000_import_automations_module.sql`.
    Ela cria as tabelas, índices, RLS, publicação Realtime e o gatilho de negócio ganho.
 2. Publicar `automation-runner`, `automation-scheduler`, `wc-receiver`,
    `simulate-wc-webhook`, `webhook-cleanup` e `sync-whatsapp-templates`.

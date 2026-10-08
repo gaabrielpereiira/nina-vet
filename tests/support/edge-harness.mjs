@@ -11,6 +11,7 @@ export function loadEdge(path, globals = {}) {
     console: { log() {}, error() {}, warn() {} }, Response, Request, Headers, URL,
     TextEncoder, TextDecoder, Uint8Array, crypto, btoa, atob, AbortController, setTimeout, clearTimeout,
     Deno: { env: { get: (name) => ({ SUPABASE_URL: 'https://test.example', SUPABASE_SERVICE_ROLE_KEY: 'service-key' })[name] }, serve(fn) { handler = fn; } },
+    serve(fn) { handler = fn; },
     ...globals,
   });
   vm.runInContext(code, context);
@@ -39,6 +40,10 @@ export function postgrest(db) {
         delete() { operation = 'delete'; return builder; },
         eq(column, value) { filters.push(condition(column, '=', value)); return builder; },
         is(column, value) { filters.push(condition(column, 'IS', value)); return builder; },
+        not(column, operator, value) {
+          if (operator !== 'is' || value !== null) throw new Error('Only not-is-null is supported');
+          filters.push(`${id(column)} IS NOT NULL`); return builder;
+        },
         lt(column, value) { filters.push(condition(column, '<', value)); return builder; },
         lte(column, value) { filters.push(condition(column, '<=', value)); return builder; },
         gte(column, value) { filters.push(condition(column, '>=', value)); return builder; },
