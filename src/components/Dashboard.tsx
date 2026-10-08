@@ -24,7 +24,6 @@ const Dashboard: React.FC = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodFilter>('today');
-  const { setShowOnboarding } = useOutletContext<OutletContext>();
 
   useEffect(() => {
     const loadData = async () => {
