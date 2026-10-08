@@ -11,6 +11,7 @@ import Kanban from './components/Kanban';
 import Automations from './components/Automations';
 import Auth from './pages/Auth';
 import WhatsAppCallback from './pages/WhatsAppCallback';
+import SetPassword from './pages/SetPassword';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import { CompanySettingsProvider } from './hooks/useCompanySettings';
@@ -71,6 +72,7 @@ const App: React.FC = () => {
           <Routes>
             {/* Public Routes */}
             <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/set-password" element={<SetPassword />} />
             <Route path="/whatsapp/callback" element={<WhatsAppCallback />} />
             
             {/* Protected Routes (With Sidebar) */}
