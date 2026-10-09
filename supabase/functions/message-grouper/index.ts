@@ -135,11 +135,13 @@ serve(async (req) => {
 
         // Update the last message with combined content if multiple messages
         if (dbMessages.length > 1) {
+          // Mantém o texto original de cada mensagem (como no WhatsApp);
+          // o conteúdo combinado fica só nos metadados/fila da Nina.
           await supabase
             .from('messages')
             .update({
-              content: combinedContent,
               metadata: {
+                combined_content: combinedContent,
                 ...lastDbMessage.metadata,
                 grouped_messages: messageIds,
                 message_count: messageIds.length
