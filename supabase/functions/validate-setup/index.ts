@@ -109,18 +109,22 @@ serve(async (req) => {
         const zernioApiKey = await getZernioApiKey(supabase);
         try {
           const waResponse = zernioApiKey
-            ? await fetch(`https://zernio.com/api/v1/accounts/${settings.zernio_account_id}`, {
+            ? await fetch(`https://zernio.com/api/v1/accounts`, {
                 headers: { Authorization: `Bearer ${zernioApiKey}` },
               })
             : null;
-
+          let account: any = null;
           if (waResponse?.ok) {
             const waData = await waResponse.json();
-            const account = waData?.account || waData;
+            const list = Array.isArray(waData) ? waData : (waData?.accounts || waData?.data || []);
+            account = list.find((a: any) => (a?._id || a?.id) === settings.zernio_account_id);
+          }
+
+          if (account && account.isActive !== false) {
             results.push({
               component: 'whatsapp',
               status: 'ok',
-              message: `WhatsApp conectado: ${account?.username || settings.zernio_display_phone_number || 'Ativo'}`,
+              message: `WhatsApp conectado: ${settings.zernio_display_phone_number || account?.username || 'Ativo'}`,
             });
           } else if (!zernioApiKey) {
             results.push({
