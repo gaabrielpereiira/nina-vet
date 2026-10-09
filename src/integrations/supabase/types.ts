@@ -2064,6 +2064,14 @@ export type Database = {
           sdr_name: string
         }[]
       }
+      get_nina_automation: {
+        Args: never
+        Returns: {
+          auto_response_enabled: boolean
+          id: string
+          is_active: boolean
+        }[]
+      }
       get_or_create_conversation_state: {
         Args: { p_conversation_id: string }
         Returns: {
@@ -2090,6 +2098,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      set_nina_automation: {
+        Args: { p_enabled: boolean }
+        Returns: {
+          auto_response_enabled: boolean
+          id: string
+          is_active: boolean
+        }[]
       }
       update_client_memory: {
         Args: { p_contact_id: string; p_new_memory: Json }

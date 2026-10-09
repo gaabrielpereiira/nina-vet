@@ -12,29 +12,17 @@ export function useNinaAutomation() {
     enabled: !!user,
     refetchInterval: 5000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('nina_settings')
-        .select('id, is_active, auto_response_enabled')
-        .order('created_at')
-        .order('id')
-        .limit(1)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('get_nina_automation');
       if (error) throw error;
-      return data;
+      return data?.[0] ?? null;
     },
   });
   const mutation = useMutation({
     mutationFn: async (enabled: boolean) => {
       if (!query.data?.id) throw new Error('Configure a Nina antes de alterar o atendimento.');
-      const { data, error } = await supabase
-        .from('nina_settings')
-        .update({ is_active: enabled, auto_response_enabled: enabled })
-        .eq('id', query.data.id)
-        .select('id, is_active, auto_response_enabled')
-        .single();
-      // Requiring the updated row also detects updates denied by RLS.
+      const { data, error } = await supabase.rpc('set_nina_automation', { p_enabled: enabled });
       if (error) throw error;
-      return data;
+      return data?.[0] ?? null;
     },
     onSuccess: (data) => queryClient.setQueryData(queryKey, data),
     onSettled: () => queryClient.invalidateQueries({ queryKey }),

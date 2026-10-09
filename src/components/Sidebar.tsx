@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { NotificationsBell } from './NotificationsBell';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import ThemeToggle from '@/components/ThemeToggle';
 import vetLogoAsset from '@/assets/logo-vetmais.jpeg.asset.json';
 const viaIcon = vetLogoAsset.url;
@@ -20,9 +21,9 @@ const menuItems = [
   { id: 'chat', label: 'Chat Ao Vivo', icon: MessageSquare },
   { id: 'contacts', label: 'Contatos', icon: Users },
   { id: 'scheduling', label: 'Agendamentos', icon: Calendar },
-  { id: 'automations', label: 'Automações', icon: Zap },
-  { id: 'team', label: 'Equipe', icon: ShieldCheck },
-  { id: 'settings', label: 'Configurações', icon: SettingsIcon },
+  { id: 'automations', label: 'Automações', icon: Zap, adminOnly: true },
+  { id: 'team', label: 'Equipe', icon: ShieldCheck, adminOnly: true },
+  { id: 'settings', label: 'Configurações', icon: SettingsIcon, adminOnly: true },
 ];
 
 const Logo = ({ companyName }: { companyName: string }) => {
@@ -68,7 +69,8 @@ const SidebarContent = () => {
   const currentPath = location.pathname.substring(1) || 'dashboard';
   const { open, setOpen } = useSidebar();
 
-  const links = menuItems.map(item => ({
+  const { isAdmin } = useIsAdmin();
+  const links = menuItems.filter(i => !(i as any).adminOnly || isAdmin).map(item => ({
     label: item.label,
     href: `/${item.id}`,
     icon: <item.icon className="h-5 w-5" />,
