@@ -13,6 +13,13 @@ import Auth from './pages/Auth';
 import WhatsAppCallback from './pages/WhatsAppCallback';
 import SetPassword from './pages/SetPassword';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useIsAdmin } from './hooks/useIsAdmin';
+
+const AdminOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAdmin, loading } = useIsAdmin();
+  if (loading) return null;
+  return isAdmin ? <>{children}</> : <Navigate to="/chat" replace />;
+};
 
 import { CompanySettingsProvider } from './hooks/useCompanySettings';
 import { AuthProvider } from './hooks/useAuth';
@@ -80,9 +87,9 @@ const App: React.FC = () => {
               <Route path="/chat" element={<ChatInterface />} />
               <Route path="/contacts" element={<Contacts />} />
               <Route path="/scheduling" element={<Scheduling />} />
-              <Route path="/automations" element={<Automations />} />
-              <Route path="/team" element={<Team />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route path="/automations" element={<AdminOnly><Automations /></AdminOnly>} />
+              <Route path="/team" element={<AdminOnly><Team /></AdminOnly>} />
+              <Route path="/settings" element={<AdminOnly><Settings /></AdminOnly>} />
             </Route>
             
             {/* Catch all - redirect to dashboard */}
