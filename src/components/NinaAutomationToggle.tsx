@@ -3,12 +3,10 @@ import { Bot, Loader2, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { Switch } from './ui/switch';
 import { useNinaAutomation } from '@/hooks/useNinaAutomation';
-import { useCompanySettings } from '@/hooks/useCompanySettings';
 
 export function NinaAutomationToggle() {
   const id = useId();
   const { enabled, available, loading, error, saving, setEnabled } = useNinaAutomation();
-  const { isAdmin } = useCompanySettings();
   const busy = loading || saving;
 
   const handleChange = async (next: boolean) => {
@@ -32,7 +30,7 @@ export function NinaAutomationToggle() {
           aria-label="Respostas automáticas da Nina em todas as conversas"
           aria-describedby={`${id}-description`}
           checked={enabled}
-          disabled={busy || !available || !isAdmin}
+          disabled={busy || !available}
           onCheckedChange={handleChange}
         />
       </div>
@@ -42,8 +40,7 @@ export function NinaAutomationToggle() {
           : !available ? 'Configure a Nina para habilitar esta opção.'
           : enabled ? 'A Nina responde nas conversas habilitadas para IA.'
           : 'Nina pausada em todas as conversas, inclusive novas. O atendimento humano continua disponível.'}
-        {!isAdmin && available && ' Apenas administradores podem alterar esta opção.'}
-        {isAdmin && available && ' A alteração é salva imediatamente.'}
+        {available && ' A alteração é salva imediatamente.'}
       </p>
     </div>
   );
