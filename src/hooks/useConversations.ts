@@ -13,9 +13,19 @@ import {
 } from '@/types';
 import { toast } from 'sonner';
 
+// Cache em memória: mantém as conversas ao sair e voltar para o chat
+let conversationsCache: UIConversation[] | null = null;
+
 export function useConversations() {
-  const [conversations, setConversations] = useState<UIConversation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversationsState] = useState<UIConversation[]>(() => conversationsCache ?? []);
+  const [loading, setLoading] = useState(() => conversationsCache === null);
+  const setConversations = useCallback((updater: React.SetStateAction<UIConversation[]>) => {
+    setConversationsState((prev) => {
+      const next = typeof updater === 'function' ? (updater as (p: UIConversation[]) => UIConversation[])(prev) : updater;
+      conversationsCache = next;
+      return next;
+    });
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [realtimeConnected, setRealtimeConnected] = useState(true);
   
@@ -90,7 +100,7 @@ export function useConversations() {
   // Initial fetch
   const fetchConversations = useCallback(async () => {
     try {
-      setLoading(true);
+      if (conversationsCache === null) setLoading(true);
       setError(null);
       const data = await api.fetchConversations();
       

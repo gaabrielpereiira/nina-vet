@@ -1281,28 +1281,35 @@ export const api = {
 
     console.log(`[API] Found ${conversations.length} conversations`);
 
-    // Fetch messages for each conversation
-    const conversationsWithMessages: UIConversation[] = await Promise.all(
-      conversations.map(async (conv) => {
-        const { data: messages, error: msgError } = await supabase
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conv.id)
-          .order('sent_at', { ascending: true })
-          .limit(100);
+    // Fetch messages for all conversations in a few paged requests (instead of one per conversation)
+    const ids = conversations.map((c) => c.id);
+    const byConv = new Map<string, DBMessage[]>();
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data: page, error: msgError } = await supabase
+        .from('messages')
+        .select('*')
+        .in('conversation_id', ids)
+        .order('sent_at', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (msgError) {
+        console.error('[API] Error fetching messages:', msgError);
+        break;
+      }
+      for (const m of (page || []) as unknown as DBMessage[]) {
+        const list = byConv.get(m.conversation_id) || [];
+        list.push(m);
+        byConv.set(m.conversation_id, list);
+      }
+      if (!page || page.length < PAGE) break;
+    }
 
-        if (msgError) {
-          console.error(`[API] Error fetching messages for ${conv.id}:`, msgError);
-        }
-
-        return transformDBToUIConversation(
-          conv as unknown as DBConversation,
-          (messages || []) as unknown as DBMessage[]
-        );
-      })
+    return conversations.map((conv) =>
+      transformDBToUIConversation(
+        conv as unknown as DBConversation,
+        (byConv.get(conv.id) || []).slice(-100)
+      )
     );
-
-    return conversationsWithMessages;
   },
 
   /**
