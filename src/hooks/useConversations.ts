@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import type { SetStateAction } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { api } from '@/services/api';
 import { 
@@ -19,7 +20,7 @@ let conversationsCache: UIConversation[] | null = null;
 export function useConversations() {
   const [conversations, setConversationsState] = useState<UIConversation[]>(() => conversationsCache ?? []);
   const [loading, setLoading] = useState(() => conversationsCache === null);
-  const setConversations = useCallback((updater: React.SetStateAction<UIConversation[]>) => {
+  const setConversations = useCallback((updater: SetStateAction<UIConversation[]>) => {
     setConversationsState((prev) => {
       const next = typeof updater === 'function' ? (updater as (p: UIConversation[]) => UIConversation[])(prev) : updater;
       conversationsCache = next;
