@@ -5,6 +5,11 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
+const readLinkError = () => {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, '') + '&' + window.location.search.replace(/^\?/, ''));
+  return params.get('error_code') || params.get('error');
+};
+
 const SetPassword: React.FC = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -12,11 +17,16 @@ const SetPassword: React.FC = () => {
   const [confirm, setConfirm] = useState('');
   const [saving, setSaving] = useState(false);
   const [waited, setWaited] = useState(false);
+  const [linkError] = useState(readLinkError);
+  const [resendEmail, setResendEmail] = useState('');
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => setWaited(true), 2500);
+    if (linkError) { setWaited(true); return; }
+    // Dá tempo para conexões lentas lerem a sessão do link
+    const t = setTimeout(() => setWaited(true), 12000);
     return () => clearTimeout(t);
-  }, []);
+  }, [linkError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +45,20 @@ const SetPassword: React.FC = () => {
     navigate('/dashboard', { replace: true });
   };
 
-  const noSession = !loading && !user && waited;
+  const handleResend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = resendEmail.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return toast.error('Digite um email válido.');
+    setResending(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/set-password`,
+    });
+    setResending(false);
+    if (error) return toast.error(`Não foi possível reenviar: ${error.message}`);
+    toast.success('Link enviado! Confira sua caixa de entrada e o spam.');
+  };
+
+  const noSession = !user && (linkError || (!loading && waited));
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -48,17 +71,9 @@ const SetPassword: React.FC = () => {
           </div>
         </div>
 
-        {(loading || (!user && !waited)) ? (
-          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-        ) : noSession ? (
-          <div className="space-y-4 text-sm text-muted-foreground">
-            <p>Este link de convite expirou ou já foi usado.</p>
-            <p>Peça um novo convite ao administrador ou entre pela tela de login usando "Esqueci a senha".</p>
-            <button onClick={() => navigate('/auth')} className="w-full rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground">Ir para o login</button>
-          </div>
-        ) : (
+        {user ? (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-muted-foreground">Conta: <span className="text-foreground">{user?.email}</span></p>
+            <p className="text-sm text-muted-foreground">Conta: <span className="text-foreground">{user.email}</span></p>
             <input type="password" placeholder="Nova senha (mín. 8 caracteres)" value={password} onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring" />
             <input type="password" placeholder="Confirme a senha" value={confirm} onChange={(e) => setConfirm(e.target.value)}
@@ -68,6 +83,24 @@ const SetPassword: React.FC = () => {
               {saving && <Loader2 className="h-4 w-4 animate-spin" />} Salvar senha e entrar
             </button>
           </form>
+        ) : noSession ? (
+          <div className="space-y-4 text-sm text-muted-foreground">
+            <p>Este link expirou ou já foi usado. Digite seu email para receber um link novo:</p>
+            <form onSubmit={handleResend} className="space-y-3">
+              <input type="email" placeholder="seu@email.com" value={resendEmail} onChange={(e) => setResendEmail(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring" />
+              <button type="submit" disabled={resending}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground disabled:opacity-60">
+                {resending && <Loader2 className="h-4 w-4 animate-spin" />} Reenviar link de acesso
+              </button>
+            </form>
+            <button onClick={() => navigate('/auth')} className="w-full rounded-lg border border-border px-4 py-2 font-medium text-foreground">Ir para o login</button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            Validando seu link...
+          </div>
         )}
       </div>
     </div>
