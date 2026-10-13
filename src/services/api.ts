@@ -1426,9 +1426,13 @@ export const api = {
     conversationId: string, 
     status: 'nina' | 'human' | 'paused'
   ): Promise<void> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const patch: Record<string, unknown> = status === 'nina'
+      ? { status, ai_paused: false, ai_paused_at: null, ai_paused_reason: null, ai_paused_by: null }
+      : { status, ai_paused: true, ai_paused_at: new Date().toISOString(), ai_paused_reason: 'manual', ai_paused_by: user?.id ?? null };
     const { error } = await supabase
       .from('conversations')
-      .update({ status })
+      .update(patch)
       .eq('id', conversationId);
 
     if (error) {

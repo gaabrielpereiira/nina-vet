@@ -29,13 +29,12 @@ export const CompanySettingsProvider: React.FC<{ children: React.ReactNode }> = 
       setLoading(true);
       
       // Check if user is admin
-      const { data: roleData } = await supabase
+      const { data: roleRows } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .eq('user_id', user.id);
       
-      setIsAdmin(roleData?.role === 'admin');
+      setIsAdmin((roleRows ?? []).some((r) => r.role === 'admin'));
       
       // Fetch global nina_settings (no user_id filter)
       const { data, error } = await supabase
