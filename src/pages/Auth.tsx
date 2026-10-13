@@ -214,6 +214,28 @@ const Auth: React.FC = () => {
               {errors.password && (
                 <p className="text-sm text-destructive">{errors.password}</p>
               )}
+              {isLogin && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="text-sm text-primary hover:underline"
+                    onClick={async () => {
+                      const target = email.trim().toLowerCase();
+                      if (!emailSchema.safeParse(target).success) {
+                        toast.error('Digite seu email acima para receber o link.');
+                        return;
+                      }
+                      const { error } = await supabase.auth.resetPasswordForEmail(target, {
+                        redirectTo: `${window.location.origin}/auth/set-password`,
+                      });
+                      if (error) toast.error(`Não foi possível enviar: ${error.message}`);
+                      else toast.success('Enviamos um link para criar uma nova senha. Confira o email e o spam.');
+                    }}
+                  >
+                    Esqueci a senha
+                  </button>
+                </div>
+              )}
             </div>
 
             <Button
