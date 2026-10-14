@@ -1,4 +1,5 @@
 import { getNinaAutomationBlockReason } from "../_shared/nina-automation.ts";
+import { trimToCompleteSentence } from "../_shared/ai-text.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -1019,8 +1020,7 @@ async function processQueueItem(
       { role: 'system', content: processedPrompt },
       ...conversationHistory
     ],
-    temperature: aiSettings.temperature,
-    max_tokens: 1000
+    temperature: aiSettings.temperature
   };
 
   // Only add tools if we have any
@@ -1029,35 +1029,54 @@ async function processQueueItem(
     requestBody.tool_choice = "auto";
   }
 
-  // Call Lovable AI Gateway
-  const aiResponse = await fetch(LOVABLE_AI_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${lovableApiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  });
+  // Os modelos Gemini 2.5 gastam parte do max_tokens "pensando"; com um limite baixo a resposta
+  // visível chegava cortada no meio da frase. Começa com folga e, se ainda assim estourar, tenta de novo com mais.
+  const requestAI = async (maxTokens: number) => {
+    const res = await fetch(LOVABLE_AI_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ ...requestBody, max_tokens: maxTokens })
+    });
 
-  if (!aiResponse.ok) {
-    const errorText = await aiResponse.text();
-    console.error('[Nina] AI response error:', aiResponse.status, errorText);
-    
-    if (aiResponse.status === 429) {
-      throw new Error('Rate limit exceeded, will retry later');
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('[Nina] AI response error:', res.status, errorText);
+
+      if (res.status === 429) {
+        throw new Error('Rate limit exceeded, will retry later');
+      }
+      if (res.status === 402) {
+        throw new Error('Payment required - please add credits');
+      }
+      throw new Error(`AI error: ${res.status}`);
     }
-    if (aiResponse.status === 402) {
-      throw new Error('Payment required - please add credits');
-    }
-    throw new Error(`AI error: ${aiResponse.status}`);
+
+    return await res.json();
+  };
+
+  let aiData = await requestAI(4096);
+  let finishReason = aiData.choices?.[0]?.finish_reason;
+
+  if (finishReason === 'length') {
+    console.warn('[Nina] AI response hit the token limit, retrying with a larger budget');
+    aiData = await requestAI(8192);
+    finishReason = aiData.choices?.[0]?.finish_reason;
   }
 
-  const aiData = await aiResponse.json();
   const aiMessage = aiData.choices?.[0]?.message;
   let aiContent = aiMessage?.content || '';
   const toolCalls = aiMessage?.tool_calls || [];
 
-  console.log('[Nina] AI response received, content length:', aiContent?.length || 0, ', tool_calls:', toolCalls.length);
+  // Último recurso: se mesmo com 8192 tokens a resposta foi cortada, nunca manda meia frase pro tutor.
+  if (finishReason === 'length' && aiContent) {
+    console.warn('[Nina] AI response still truncated, trimming to the last complete sentence');
+    aiContent = trimToCompleteSentence(aiContent);
+  }
+
+  console.log('[Nina] AI response received, content length:', aiContent?.length || 0, ', tool_calls:', toolCalls.length, ', finish_reason:', finishReason);
 
   // Process tool calls
   let appointmentCreated = null;
