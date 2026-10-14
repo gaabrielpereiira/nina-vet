@@ -1,6 +1,9 @@
 import { authorizeAutomationRequest } from "../_shared/automation-auth.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
+// Global available in the Supabase Edge runtime; declared so type-check passes.
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
