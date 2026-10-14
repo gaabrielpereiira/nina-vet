@@ -111,6 +111,45 @@ const cancelAppointmentTool = {
   }
 };
 
+// Tool: Nina pede um atendente humano
+const humanHandoffTool = {
+  type: "function",
+  function: {
+    name: "request_human_handoff",
+    description: "Transferir a conversa para um atendente humano da clínica. Use quando o tutor pedir para falar com uma pessoa/atendente/veterinário, em emergências ou casos graves com o pet, reclamações, assuntos financeiros/negociação, ou quando você não souber responder com segurança. Sempre avise o tutor na resposta que um atendente vai continuar.",
+    parameters: {
+      type: "object",
+      properties: {
+        reason: { type: "string", description: "Motivo resumido da transferência" },
+        urgent: { type: "boolean", description: "true se for emergência ou caso grave com o animal" }
+      },
+      required: ["reason"]
+    }
+  }
+};
+
+async function handleHumanHandoff(supabase: any, conversation: any, args: { reason?: string; urgent?: boolean }) {
+  const now = new Date().toISOString();
+  const { error: convErr } = await supabase
+    .from('conversations')
+    .update({ status: 'human', ai_paused: true, ai_paused_at: now, ai_paused_reason: 'handoff' })
+    .eq('id', conversation.id);
+  if (convErr) console.error('[Nina] Handoff: failed to update conversation', convErr);
+
+  const contact = conversation.contact || {};
+  const name = contact.name || contact.call_name || contact.phone_number || 'Cliente';
+  const { error: notifErr } = await supabase.from('notifications').insert({
+    type: args.urgent ? 'handoff_urgent' : 'handoff_requested',
+    title: `${args.urgent ? '🚨 Urgente: ' : ''}${name} precisa de atendimento humano`,
+    body: args.reason || 'A Nina transferiu a conversa para a equipe.',
+    conversation_id: conversation.id,
+    contact_id: conversation.contact_id,
+    metadata: { reason: args.reason || null, urgent: !!args.urgent, source: 'nina' },
+  });
+  if (notifErr) console.error('[Nina] Handoff: failed to create notification', notifErr);
+  console.log('[Nina] Handoff to human for conversation', conversation.id);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1012,6 +1051,7 @@ async function processQueueItem(
     tools.push(cancelAppointmentTool);
     console.log('[Nina] AI scheduling enabled, adding appointment tools (create, reschedule, cancel)');
   }
+  tools.push(humanHandoffTool);
 
   // Build request body
   const requestBody: any = {
@@ -1080,6 +1120,7 @@ async function processQueueItem(
 
   // Process tool calls
   let appointmentCreated = null;
+  let handoffRequested = false;
   let appointmentRescheduled = null;
   let appointmentCancelled = null;
   
@@ -1167,6 +1208,16 @@ async function processQueueItem(
         console.error('[Nina] Error parsing cancel_appointment arguments:', parseError);
       }
     }
+    if (toolCall.function?.name === 'request_human_handoff') {
+      let args: any = {};
+      try { args = JSON.parse(toolCall.function.arguments || '{}'); } catch (_) { /* ignore */ }
+      handoffRequested = true;
+      await handleHumanHandoff(supabase, conversation, args);
+    }
+  }
+
+  if (handoffRequested && !aiContent) {
+    aiContent = 'Certo! Vou chamar alguém da nossa equipe para continuar seu atendimento. Só um instante 😊';
   }
 
   // If no content and we only got tool calls, generate a default response
