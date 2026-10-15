@@ -691,25 +691,29 @@ const ChatInterface: React.FC = () => {
               </div>
               <div className="flex items-center gap-1">
                 {/* Status control buttons */}
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className={`text-slate-400 hover:text-white ${!ninaGloballyPaused && activeChat.status === 'nina' ? 'bg-violet-500/20 text-violet-400' : ''}`}
-                  disabled={ninaGloballyPaused}
-                  onClick={() => handleStatusChange('nina')}
-                  title={ninaGloballyPaused ? 'Ative primeiro a Nina automática na chave geral' : `Ativar ${sdrName} (IA)`}
-                >
-                  <Bot className="w-5 h-5" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className={`text-slate-400 hover:text-white ${activeChat.status === 'human' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}
-                  onClick={() => handleStatusChange('human')}
-                  title="Assumir conversa"
-                >
-                  <User className="w-5 h-5" />
-                </Button>
+                {activeChat.status === 'nina' && !ninaGloballyPaused ? (
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 mr-1"
+                    onClick={() => handleStatusChange('human')}
+                    title="Assumir atendimento (a Nina para de responder)"
+                  >
+                    <User className="w-4 h-4" />
+                    Assumir atendimento
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 mr-1 border-violet-500/50 text-violet-400 hover:bg-violet-500/10"
+                    disabled={ninaGloballyPaused}
+                    onClick={() => handleStatusChange('nina')}
+                    title={ninaGloballyPaused ? 'Ative primeiro a Nina automática na chave geral' : `Devolver para ${sdrName}`}
+                  >
+                    <Bot className="w-4 h-4" />
+                    Devolver para {sdrName}
+                  </Button>
+                )}
                 <Button 
                   variant="ghost" 
                   size="icon" 
