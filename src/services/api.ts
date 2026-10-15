@@ -1404,6 +1404,23 @@ export const api = {
       throw sendError;
     }
 
+    // Human sent a message from the CRM: take over the conversation so Nina stops replying
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase
+        .from('conversations')
+        .update({
+          status: 'human',
+          ai_paused: true,
+          ai_paused_at: new Date().toISOString(),
+          ai_paused_reason: 'human_reply',
+          ai_paused_by: user?.id ?? null,
+        })
+        .eq('id', conversationId)
+        .eq('status', 'nina');
+    } catch (err) {
+      console.error('[API] Failed to auto-takeover conversation:', err);
+    }
 
     console.log('[API] Message queued for sending');
 
