@@ -158,6 +158,40 @@ async function handleAccountDisconnected(supabase: any, payload: any) {
   console.log('[zernio-webhook] Conta WhatsApp desconectada:', account.accountId, account.reason);
 }
 
+const HUMAN_INACTIVITY_MS = 12 * 60 * 60 * 1000;
+
+async function maybeReturnToNina(supabase: any, conversation: any) {
+  const archived = !!conversation.archived_at;
+  const isHuman = conversation.status !== 'nina' || conversation.ai_paused;
+  if (!archived && !isHuman) return;
+
+  let shouldReturn = archived;
+  if (!shouldReturn) {
+    const { data: lastHuman } = await supabase
+      .from('messages')
+      .select('sent_at')
+      .eq('conversation_id', conversation.id)
+      .eq('from_type', 'human')
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const ref = lastHuman?.sent_at || conversation.ai_paused_at;
+    shouldReturn = !ref || Date.now() - new Date(ref).getTime() >= HUMAN_INACTIVITY_MS;
+  }
+  if (!shouldReturn) return;
+
+  await supabase
+    .from('conversations')
+    .update({
+      status: 'nina', ai_paused: false, ai_paused_at: null, ai_paused_reason: null,
+      ai_paused_by: null, archived_at: null, archived_by: null,
+    })
+    .eq('id', conversation.id);
+  conversation.status = 'nina';
+  conversation.ai_paused = false;
+  console.log('[zernio-webhook] Conversa devolvida para a Nina:', conversation.id, archived ? 'arquivada' : '12h inativa');
+}
+
 async function handleMessageReceived(supabase: any, supabaseUrl: string, supabaseServiceKey: string, payload: any) {
   const message = payload.message;
   const conversationCtx = payload.conversation;
@@ -240,11 +274,15 @@ async function handleMessageReceived(supabase: any, supabaseUrl: string, supabas
       return;
     }
     conversation = newConversation;
-  } else if (!conversation.zernio_conversation_id && (conversationCtx?.id || message.conversationId)) {
-    await supabase
-      .from('conversations')
-      .update({ zernio_conversation_id: conversationCtx?.id || message.conversationId })
-      .eq('id', conversation.id);
+  } else {
+    if (!conversation.zernio_conversation_id && (conversationCtx?.id || message.conversationId)) {
+      await supabase
+        .from('conversations')
+        .update({ zernio_conversation_id: conversationCtx?.id || message.conversationId })
+        .eq('id', conversation.id);
+    }
+    // Devolve para a Nina: conversa arquivada OU 12h+ sem interação humana
+    await maybeReturnToNina(supabase, conversation);
   }
 
   // 3. Conteúdo / tipo
