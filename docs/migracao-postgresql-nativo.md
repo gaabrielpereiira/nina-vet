@@ -26,8 +26,12 @@ PostgreSQL comum na VPS, com backend próprio. Não instalar o template Supabase
   `COMMIT`; a estrutura de autenticação/e-mail foi criada sem importar contas.
 - A Application `nina-api` foi criada no Dokploy (ID
   `cGVE1eOPHWTETcz1IbxAr`, app `nina-vet-mais-ninaapi-klo6hq`). Autodeploy
-  desligado e nenhum deploy realizado. A nova base de código ainda não foi
-  publicada no GitHub nem ligada ao serviço.
+  desligado e nenhum deploy realizado. A fonte e o build já estão salvos no
+  serviço: Git público, branch `codex/postgres-backend`, Build Path `/`,
+  Dockerfile `server/Dockerfile`, contexto `.`, stage `production`.
+  A branch está pronta localmente, mas seu envio ao repositório público
+  depende de autorização explícita do usuário. Não disparar o deploy enquanto
+  a branch não estiver disponível no GitHub.
 - O domínio `api.nina.sharkassessoria.tech` está salvo, com caminho `/`, porta
   interna `3000`, HTTPS e Let's Encrypt. Conferido na lista de Domains. A emissão
   efetiva do certificado e a resposta HTTP ainda não foram verificadas.
