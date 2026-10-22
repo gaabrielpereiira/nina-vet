@@ -1,20 +1,53 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Nina Vet
 
-# Run and deploy your AI Studio app
+Plataforma da clínica Vet+ com interface React/Vite. A migração para a VPS com
+Dokploy está sendo preparada na branch `codex/postgres-backend`.
 
-This contains everything you need to run your app locally.
+## Estado da migração
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Bemm5SfsFUjw9u5_Ti1uOyww-RdL5XCo
+A pasta `server/` contém a base da API própria em Node.js e PostgreSQL, sem
+dependências Supabase/Lovable: login, sessões revogáveis, recuperação de senha
+e integração Resend com fila criptografada. As duas migrações iniciais já foram
+aplicadas no banco novo da VPS e o acesso limitado `nina_app` foi preparado.
 
-## Run Locally
+**A migração completa ainda não terminou.** A interface e as funções antigas
+continuam usando Supabase. Dados, mídias, regras de negócio, IA, WhatsApp,
+Vetsoft e tempo real ainda precisam ser portados e verificados antes de
+substituir o sistema em produção. Uma publicação da API base serve apenas
+para testar o container, a conexão com o banco e o domínio novo.
 
-**Prerequisites:**  Node.js
+## Desenvolvimento
 
+Requer Node.js 22 ou superior.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```sh
+npm ci
+npm run dev
+```
+
+A interface atual ainda depende da configuração pública Supabase da origem.
+Não apontar essas variáveis para a API própria: os contratos são diferentes.
+As instruções do backend e de suas variáveis estão em [server/README.md](server/README.md).
+
+Chaves de IA, Resend, senhas de banco e a chave de criptografia pertencem
+somente ao servidor. Nunca colocá-las em variáveis `VITE_`, no Git ou no chat.
+
+## Testes e publicação
+
+```sh
+npm test
+npm run typecheck
+npm run build
+```
+
+Os 80 testes passaram com dados sintéticos e PostgreSQL embarcado. O build e
+o typecheck da interface continuam pendentes nesta etapa; as últimas tentativas
+não concluíram. A imagem Docker e a conexão da API na VPS precisam de teste real.
+
+Para testar exclusivamente a API no Dokploy, usar o contexto `.`, Dockerfile
+`server/Dockerfile`, stage `production` e porta `3000`. Manter o autodeploy
+desligado e `EMAIL_ENABLED=false` durante a preparação. O Dockerfile da raiz
+é da interface antiga e ainda não representa a migração concluída.
+
+O acompanhamento e os critérios de conclusão estão em
+[docs/migracao-postgresql-nativo.md](docs/migracao-postgresql-nativo.md).

@@ -1,0 +1,14 @@
+# Frontend service for the complete migration. The Supabase backend is
+# provisioned separately; see docs/migracao-dokploy.md before deployment.
+services:
+  nina-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?Configure a URL publica do novo backend}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:?Configure apenas a chave publica do novo backend}
+        VITE_SUPABASE_PROJECT_ID: ${VITE_SUPABASE_PROJECT_ID:-}
+    restart: unless-stopped
+    expose:
+      - "8080"

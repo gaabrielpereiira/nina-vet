@@ -1,0 +1,17 @@
+.git
+.github
+node_modules
+dist
+dist-ssr
+.env
+.env.*
+**/.env
+**/.env.*
+*.log
+.DS_Store
+work
+outputs
+backups
+*.backup
+*.dump
+*.zip
