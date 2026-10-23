@@ -2,6 +2,7 @@ import test, { before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { PGlite } from '@electric-sql/pglite';
 import { readConfig } from '../server/src/config.mjs';
 import { createApp } from '../server/src/app.mjs';
@@ -16,8 +17,9 @@ const env = {
 };
 const config = readConfig(env);
 const password = 'Synthetic-password-2026!';
+const bcrypt = createRequire(new URL('../server/package.json', import.meta.url))('bcryptjs');
 const userId = randomUUID();
-let engine, db, migrations, passwordHash, app;
+let engine, db, migrations, passwordHash, legacyPasswordHash, app;
 
 function adapter(pg) {
   return {
@@ -55,6 +57,7 @@ before(async () => {
   // the database name adjusted; all schema/table/role privileges are unchanged.
   await db.exec(grantSQL.replace('ON DATABASE nina TO', 'ON DATABASE postgres TO'));
   passwordHash = await hashPassword(password);
+  legacyPasswordHash = await bcrypt.hash(password, 10);
 });
 
 beforeEach(async () => {
@@ -281,4 +284,44 @@ test('native API: password hashing is salted and bounds concurrent verification 
   await assert.rejects(verify(password, passwordHash), { status: 429, code: 'AUTH_BUSY' });
   assert.equal(await first, true);
   assert.equal(await verify('wrong', passwordHash), false);
+});
+
+test('native API: migrated bcrypt aliases preserve the existing password and role', async () => {
+  for (const prefix of ['2a', '2b', '2y']) {
+    const encoded = legacyPasswordHash.replace(/^\$2b\$/, '$' + prefix + '$');
+    await db.exec('RESET ROLE');
+    await db.query('UPDATE nina_auth.users SET password_hash = $1 WHERE id = $2', [encoded, userId]);
+    await db.exec('SET ROLE nina_app');
+    const response = await login();
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.user.id, userId);
+    assert.deepEqual(body.user.roles, ['user']);
+    assert.equal((await app(request('/v1/auth/session', { cookie: sessionCookie(response) }))).status, 200);
+    assert.equal((await db.query('SELECT password_hash FROM nina_auth.users WHERE id = $1', [userId]))[0].password_hash, encoded);
+  }
+  assert.equal((await login({ body: { email: 'agent@example.com', password: 'incorrect' } })).status, 401);
+});
+
+test('native API: legacy bcrypt rejects password truncation beyond 72 UTF-8 bytes', async () => {
+  for (const original of ['x'.repeat(72), 'á'.repeat(36)]) {
+    await db.exec('RESET ROLE');
+    await db.query('UPDATE nina_auth.users SET password_hash = $1 WHERE id = $2',
+      [await bcrypt.hash(original, 10), userId]);
+    await db.exec('SET ROLE nina_app');
+    assert.equal((await login({ body: { email: 'agent@example.com', password: original } })).status, 200);
+    assert.equal((await login({ body: { email: 'agent@example.com', password: original + 'x' } })).status, 401);
+  }
+});
+
+test('native API: unsupported legacy costs and dummy hashes never grant access', async () => {
+  const verify = createPasswordVerifier();
+  for (const encoded of [null, undefined, '', legacyPasswordHash.replace('$10$', '$31$'), '$2b$10$invalid']) {
+    assert.equal(await verify('Nina synthetic timing placeholder', encoded), false);
+  }
+  await db.exec('RESET ROLE');
+  await db.query('UPDATE nina_auth.users SET password_hash = NULL WHERE id = $1', [userId]);
+  await db.exec('SET ROLE nina_app');
+  assert.equal((await login({ body: { email: 'agent@example.com', password: 'Nina synthetic timing placeholder' } })).status, 401);
+  assert.equal((await db.query('SELECT count(*)::int AS total FROM nina_auth.sessions'))[0].total, 0);
 });

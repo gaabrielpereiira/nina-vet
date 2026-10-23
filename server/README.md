@@ -11,6 +11,8 @@ de migrar dados, permissões, telas, arquivos, tempo real e integrações.
 - Pool limitado de conexões PostgreSQL, consultas parametrizadas e timeout.
 - Migrações próprias transacionais com trava e verificação de checksum.
 - Login por e-mail/senha com scrypt e limites de tentativas persistidos no banco.
+- Compatibilidade com bcrypt de custo 10 das contas antigas, sem truncar
+  senhas acima de 72 bytes; senhas novas e recuperadas continuam em scrypt.
 - Sessões opacas revogáveis: somente o hash fica no banco; cookie HttpOnly,
   Secure e restrito ao host em produção. Nenhum token no localStorage.
 - Consulta do usuário e das funções atuais a cada autenticação, bloqueando
@@ -108,14 +110,17 @@ Os testes de integração usam PostgreSQL embarcado (PGlite), dados sintéticos,
 o SQL de migração e o papel limitado real. Não acessam o banco da clínica.
 Não substituem a validação do container e da rede interna no Dokploy.
 
-Validação atual: 80 testes passaram, incluindo 18 da base da API e 19 de
+Validação atual: 84 testes passaram, incluindo 21 da base da API e 20 de
 recuperação/fila/Resend. Os testes usam um Resend simulado; nenhuma chave real
 é carregada e nenhum e-mail real é enviado. Verificações de sintaxe e
 `git diff --check` também passaram. Typecheck e build da interface não
 concluíram na sessão anterior e continuam pendentes. O PostgreSQL nativo local
 não pôde ser inicializado devido à restrição de memória compartilhada do
-ambiente, e não há Docker local. A conexão via driver/rede e a imagem Docker
-ainda precisam de validação antes da publicação.
+ambiente, e não há Docker local. O primeiro deploy foi concluído na VPS em
+23/10/2026 e a imagem e a conexão via driver/rede passaram na validação inicial:
+HTTPS aceito, `/healthz` e `/readyz` com HTTP 200, sessão sem login com HTTP 401
+e preflight da origem da interface com HTTP 204. Ainda não há validação de
+login com conta real, recuperação de senha ou dos fluxos de negócio.
 
 ## Preparação do banco
 
@@ -126,7 +131,8 @@ os mesmos checksums esperados pelo migrador. O usuário depois criou o acesso
 de execução `nina_app` e definiu sua senha interativamente. Os flags do papel
 e as permissões foram conferidos pelo terminal em consultas somente leitura,
 sem ler a senha. O usuário confirmou que salvou a URL de execução na API;
-a conexão pela aplicação ainda precisa ser testada. Nenhum dado antigo foi importado. Os passos abaixo
+a conexão pela aplicação foi confirmada pelo `/readyz` público em 23/10/2026.
+Nenhum dado antigo foi importado. Os passos abaixo
 descrevem o procedimento normal; não reaplicar a inicialização nem o script
 de criação do papel nesse banco. Alterações futuras usam o migrador Node.
 
@@ -162,10 +168,11 @@ depois da primeira publicação planejada.
 
 ## Trabalho restante antes de substituir a produção
 
-- Conversão dos registros, relacionamentos e hashes do backup exportado.
-  Este verificador aceita somente o novo formato scrypt. Hashes legados não
-  são aceitos silenciosamente; compatibilidade ou recuperação deve ser
-  implementada antes de migrar o login dos usuários existentes.
+- Importação dos usuários e conversão dos demais registros e relacionamentos.
+  O backup foi extraído integralmente e quatro contas usam bcrypt de custo 10;
+  uma não tem senha. A compatibilidade desses hashes está implementada e
+  testada. A importação privada das cinco contas foi simulada, mas ainda não
+  aplicada na VPS. Publicar esta atualização da API antes de importar contas.
 - Adaptação da tela de recuperação para o backend já implementado, validação
   de entrega real e implementação dos convites.
 - Autorização por função da equipe e rotas de negócio, sem consultas SQL livres.
@@ -179,6 +186,10 @@ Referências: [crypto/scrypt no Node.js](https://nodejs.org/docs/latest-v22.x/ap
 [sessões na OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html),
 [papéis predefinidos do PostgreSQL](https://www.postgresql.org/docs/17/predefined-roles.html),
 [driver Postgres.js](https://github.com/porsager/postgres).
+Compatibilidade de senhas: [bcrypt.js](https://github.com/dcodeIO/bcrypt.js).
+O verificador executa scrypt e bcrypt em todas as tentativas, usando valores
+sintéticos quando necessário, e mantém o limite de dois trabalhos simultâneos.
+Somente o custo 10 observado no backup é aceito; outros custos falham fechados.
 Envio: [API Resend](https://resend.com/docs/api-reference/emails/send-email),
 [idempotência](https://resend.com/docs/dashboard/emails/idempotency-keys) e
 [recuperação de senha na OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html).

@@ -22,6 +22,7 @@ Requer Node.js 22 ou superior.
 
 ```sh
 npm ci
+npm ci --prefix server
 npm run dev
 ```
 
@@ -40,9 +41,15 @@ npm run typecheck
 npm run build
 ```
 
-Os 80 testes passaram com dados sintéticos e PostgreSQL embarcado. O build e
+Os 84 testes passaram com dados sintéticos e PostgreSQL embarcado. O build e
 o typecheck da interface continuam pendentes nesta etapa; as últimas tentativas
-não concluíram. A imagem Docker e a conexão da API na VPS precisam de teste real.
+não concluíram. O primeiro deploy da API na VPS foi validado em 23/10/2026:
+HTTPS, `/healthz` e `/readyz` responderam normalmente. Isso confirma a base
+do servidor e sua conexão com o banco, sem concluir a migração da clínica.
+
+O verificador também aceita o bcrypt de custo 10 encontrado nas contas antigas,
+mantendo scrypt para senhas novas. A importação dessas contas foi preparada e
+simulada localmente; ainda não foi aplicada na VPS.
 
 Para testar exclusivamente a API no Dokploy, usar o contexto `.`, Dockerfile
 `server/Dockerfile`, stage `production` e porta `3000`. Manter o autodeploy

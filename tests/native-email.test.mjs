@@ -2,6 +2,7 @@ import test, { before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID, createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { PGlite } from '@electric-sql/pglite';
 import { readConfig } from '../server/src/config.mjs';
 import { createApp } from '../server/src/app.mjs';
@@ -17,7 +18,8 @@ const emailEnv = { ...baseEnv, EMAIL_ENABLED: 'true', RESEND_API_KEY: 're_SYNTHE
 const config = readConfig(emailEnv);
 const oldPassword = 'Synthetic-previous-password!', newPassword = 'Synthetic-new-password-2026!';
 const userId = randomUUID();
-let engine, db, migrations, passwordHash, app;
+const bcrypt = createRequire(new URL('../server/package.json', import.meta.url))('bcryptjs');
+let engine, db, migrations, passwordHash, legacyPasswordHash, app;
 
 function adapter(pg) {
   return { query: async (text, values = []) => (await pg.query(text, values)).rows,
@@ -45,6 +47,7 @@ before(async () => {
   await db.exec((await readFile(new URL('../server/sql/runtime-role.sql', import.meta.url), 'utf8'))
     .replace('ON DATABASE nina TO', 'ON DATABASE postgres TO'));
   passwordHash = await hashPassword(oldPassword);
+  legacyPasswordHash = await bcrypt.hash(oldPassword, 10);
 });
 beforeEach(async () => {
   await db.exec(`RESET ROLE; TRUNCATE nina_mail.outbox, nina_auth.password_resets, nina_auth.sessions,
@@ -102,6 +105,27 @@ test('native mail: unknown and disabled accounts receive the same generic respon
   const worker = createMailWorker({ db, config, mailer: { send: async () => { sends++; return randomUUID(); } } });
   assert.equal(await worker.runOnce(), false); assert.equal(sends, 0);
   assert.equal((await db.query('SELECT status FROM nina_mail.outbox'))[0].status, 'cancelled');
+});
+
+test('native mail: recovery upgrades migrated bcrypt and passwordless accounts without sending real email', async () => {
+  for (const encoded of [legacyPasswordHash, null]) {
+    await db.exec('RESET ROLE; DELETE FROM nina_auth.password_resets; DELETE FROM nina_auth.sessions;');
+    await db.query('UPDATE nina_auth.users SET password_hash = $1 WHERE id = $2', [encoded, userId]);
+    await db.exec('SET ROLE nina_app');
+    const previous = await login(oldPassword);
+    assert.equal(previous.status, encoded ? 200 : 401);
+    const previousCookie = previous.headers.get('set-cookie')?.split(';')[0];
+    assert.equal((await forgot()).status, 202);
+    const { token } = await queuedToken();
+    assert.equal((await finish(token)).status, 200);
+    assert.equal((await db.query('SELECT count(*)::int AS total FROM nina_auth.sessions'))[0].total, 0);
+    if (previousCookie) assert.equal((await app(request('/v1/auth/session', undefined, previousCookie))).status, 401);
+    assert.ok((await db.query('SELECT password_hash FROM nina_auth.users WHERE id = $1', [userId]))[0].password_hash.startsWith('scrypt$'));
+    const current = await login(newPassword);
+    assert.equal(current.status, 200);
+    assert.deepEqual((await current.json()).user.roles, ['user']);
+    assert.equal((await login(oldPassword)).status, 401);
+  }
 });
 
 test('native mail: disabled email feature fails closed without creating jobs', async () => {

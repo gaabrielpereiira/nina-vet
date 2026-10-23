@@ -26,16 +26,20 @@ PostgreSQL comum na VPS, com backend próprio. Não instalar o template Supabase
   `COMMIT`; a estrutura de autenticação/e-mail foi criada sem importar contas.
 - A Application `nina-api` foi criada no Dokploy (ID
   `cGVE1eOPHWTETcz1IbxAr`, app `nina-vet-mais-ninaapi-klo6hq`). Autodeploy
-  desligado e nenhum deploy realizado. A fonte e o build já estão salvos no
+  desligado. O usuário iniciou o primeiro deploy em 23/10/2026, concluído como
+  Done para o commit `491ccdaa70c42390b03cf957ec3535dcdfcdcffb`. A fonte e o build estão salvos no
   serviço: Git público, branch `codex/postgres-backend`, Build Path `/`,
   Dockerfile `server/Dockerfile`, contexto `.`, stage `production`.
-  A branch de migração é separada de `main`. O primeiro deploy será manual,
-  apenas para validar a base da API; não substitui o sistema em produção.
+  A branch de migração é separada de `main`. O primeiro deploy manual validou
+  a base da API; não substitui o sistema em produção.
 - O domínio `api.nina.sharkassessoria.tech` está salvo, com caminho `/`, porta
   interna `3000`, HTTPS e Let's Encrypt. Conferido na lista de Domains. A emissão
-  efetiva do certificado e a resposta HTTP ainda não foram verificadas.
-- Foram adicionados 37 testes de integração para o backend próprio (18 da base
-  e 19 de recuperação/e-mail). A suíte completa passou com 80 testes, usando dados sintéticos e PostgreSQL embarcado
+  efetiva do certificado e a resposta HTTP foram verificadas em 23/10/2026:
+  `/healthz` e `/readyz` retornaram HTTP 200 com validação TLS normal.
+  A sessão sem login retornou 401 e o preflight da origem da interface,
+  204 com origem exata e cookies permitidos. Nenhum dado de paciente foi lido.
+- Foram adicionados 41 testes de integração para o backend próprio (21 da base
+  e 20 de recuperação/e-mail). A suíte completa passou com 84 testes, usando dados sintéticos e PostgreSQL embarcado
   (PGlite). Isso não comprova a migração completa nem a rede/container da VPS.
 - A última alteração na configuração da API também passou nos testes próprios.
   As verificações de sintaxe dos módulos passaram. As tentativas de typecheck e
@@ -44,9 +48,13 @@ PostgreSQL comum na VPS, com backend próprio. Não instalar o template Supabase
   publicar; não foram feitas alterações nos componentes da interface.
 - O backup exportado e os registros DNS existentes permanecem disponíveis.
 - Foi extraído o DDL do backup (349.977 bytes; 34 tabelas em `public`, 27 em
-  `auth` e 8 em `storage`) em arquivo privado fora do Git. Isso não extraiu os
-  registros das tabelas: o cliente local continua sem suporte à compressão zstd.
-  Nenhuma restauração completa foi validada.
+  `auth` e 8 em `storage`) em arquivo privado fora do Git. Em 23/10/2026,
+  também foi extraído todo o conteúdo de dados: 37.866.398 bytes, 84 tabelas
+  e 134.350 registros. Foi compilado um leitor PostgreSQL 18.6 com zstd a partir
+  da distribuição oficial, sem alterar a instalação do sistema. O checksum do
+  backup original foi reconferido e todos os blocos COPY tiveram a quantidade
+  de campos validada. O SQL e os relatórios privados permanecem fora do Git,
+  com arquivos 600 e diretório 700. Isso ainda não restaura dados na VPS.
 
 ## Contas externas — atualização do usuário
 
@@ -189,13 +197,21 @@ leitura com `SET LOCAL ROLE nina_app` também validaram o acesso às tabelas e
 as restrições de alteração de identidade, habilitação e funções da equipe.
 A senha não foi lida pelo agente. O usuário confirmou que salvou a URL de
 `nina_app` em `DATABASE_URL` na API; o valor não foi lido pelo agente e a
-autenticação por senha/rede a partir da aplicação ainda não foi testada.
+conexão por senha/rede a partir da aplicação foi confirmada pelo `/readyz`
+público em 23/10/2026. Isso não valida o login dos usuários antigos da Nina.
 Não executar o script de criação do papel novamente.
 Os testes criam contas sintéticas; nenhum usuário real foi convertido.
 A recuperação de senha do backend está implementada, mas sua tela e a entrega
 real ainda precisam de validação. Convites, rotas de negócio e permissões da
-equipe continuam pendentes. O verificador atual aceita o formato novo scrypt;
-a compatibilidade dos hashes anteriores deve ser resolvida antes da migração.
+equipe continuam pendentes. O verificador aceita o formato novo scrypt e foi
+adaptado para o bcrypt de custo 10 presente nas quatro contas com senha da
+origem. Uma quinta conta não tem senha cadastrada. O plano privado das cinco
+contas e sete atribuições de função preserva os IDs e permissões da origem;
+passou em simulação local, inclusive proteção contra reexecução e teste de
+aspas/injeção em nomes. Não copia sessões ou tokens anteriores. A origem não
+tem MFA, WebAuthn ou SSO cadastrados, e todas as identidades são de e-mail.
+A importação na VPS ainda não foi aplicada e depende da publicação do novo
+verificador e da confirmação do usuário para habilitar essas contas.
 Detalhes de desenvolvimento e execução em `server/README.md`.
 
 Não importar o backup completo diretamente no banco novo. Ele contém schemas,

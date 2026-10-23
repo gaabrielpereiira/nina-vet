@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/index.mjs",
     "migrate": "node scripts/migrate.mjs"
   },
-  "dependencies": { "postgres": "3.4.9" }
+  "dependencies": {
+    "bcryptjs": "3.0.3",
+    "postgres": "3.4.9"
+  }
 }
