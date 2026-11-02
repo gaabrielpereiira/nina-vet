@@ -7,6 +7,7 @@ COPY --chown=node:node server/src ./src
 COPY --chown=node:node server/migrations ./migrations
 COPY --chown=node:node server/scripts ./scripts
 COPY --chown=node:node server/sql ./sql
+COPY --chown=node:node server/clinic-import-tables.json ./clinic-import-tables.json
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

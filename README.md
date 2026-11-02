@@ -5,6 +5,13 @@ Dokploy está sendo preparada na branch `codex/postgres-backend`.
 
 ## Estado da migração
 
+Em 02/11/2026, a API base continua pronta na VPS e as cinco contas já estão
+importadas. A etapa de cadastros e histórico está preparada e ensaiada: 125.174
+registros em seis tabelas, com comparação de todas as colunas e 97 testes
+aprovados. A aplicação dos dados e da API atualizada depende da confirmação
+para disponibilizar esse histórico no novo servidor. Veja
+[o procedimento desta etapa](docs/migracao-historico.md).
+
 A pasta `server/` contém a base da API própria em Node.js e PostgreSQL, sem
 dependências Supabase/Lovable: login, sessões revogáveis, recuperação de senha
 e integração Resend com fila criptografada. As duas migrações iniciais já foram

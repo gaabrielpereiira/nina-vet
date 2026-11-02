@@ -4,6 +4,7 @@ import { ApiError } from './errors.mjs';
 import { assertRuntimeRole } from './database.mjs';
 import { checkSchema } from './migrations.mjs';
 import { createPasswordRecovery } from './password-recovery.mjs';
+import { createClinic } from './clinic.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -38,6 +39,7 @@ async function jsonBody(request) {
 export function createApp({ db, config, migrations, log = () => {} }) {
   const auth = createAuth(db, config);
   const recovery = createPasswordRecovery(db, config);
+  const clinic = createClinic(db, auth);
   return async function handle(request) {
     const requestId = randomUUID();
     const headers = new Headers({
@@ -112,6 +114,9 @@ export function createApp({ db, config, migrations, log = () => {} }) {
         const result = await auth.logout(request, path.endsWith('logout-all'));
         headers.set('set-cookie', result.cookie);
         return respond(result.body);
+      }
+      if (request.method === 'GET' && path.startsWith('/v1/clinic/')) {
+        return respond(await clinic(request));
       }
       throw new ApiError(404, 'NOT_FOUND', 'Recurso não encontrado.');
     } catch (error) {

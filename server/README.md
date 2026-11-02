@@ -7,6 +7,12 @@ de migrar dados, permissões, telas, arquivos, tempo real e integrações.
 
 ## Implementado nesta etapa
 
+- Consultas de contatos, animais, procedimentos, agenda e histórico de mensagens
+  com sessão nativa, RLS, paginação e papel de banco somente para leitura.
+- Migração 0003 e preparador privado da importação das seis tabelas; filas e
+  credenciais de integração não são copiadas. Consulte
+  [a aplicação coordenada](../docs/migracao-historico.md) antes de implantar.
+
 - API HTTP em Node.js, porta padrão 3000, com processo sem privilégios no Docker.
 - Pool limitado de conexões PostgreSQL, consultas parametrizadas e timeout.
 - Migrações próprias transacionais com trava e verificação de checksum.

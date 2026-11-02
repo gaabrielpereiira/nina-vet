@@ -63,7 +63,7 @@ before(async () => {
 beforeEach(async () => {
   await db.exec(`RESET ROLE;
     TRUNCATE nina_mail.outbox, nina_auth.password_resets, nina_auth.sessions,
-      nina_auth.user_roles, nina_auth.users, nina_auth.login_windows;
+      nina_auth.user_roles, nina_auth.users, nina_auth.login_windows CASCADE;
   `);
   await db.query('INSERT INTO nina_auth.users (id, email, full_name, password_hash) VALUES ($1,$2,$3,$4)',
     [userId, 'agent@example.com', 'Agente de teste', passwordHash]);
@@ -98,7 +98,7 @@ test('native API: migrations are idempotent and checksum changes roll back', asy
   assert.deepEqual(await migrate(db, migrations), []);
   await assert.rejects(migrate(db, [{ ...migrations[0], checksum: 'changed' }]), /history differs/);
   assert.equal(await checkSchema(db, migrations), true);
-  const broken = { version: '0003_broken.sql', checksum: 'x'.repeat(64),
+  const broken = { version: '0004_broken.sql', checksum: 'x'.repeat(64),
     sql: 'CREATE TABLE nina_auth.should_rollback(id integer); SELECT missing_column;' };
   await assert.rejects(migrate(db, [...migrations, broken]), /missing_column/);
   assert.equal((await db.query("SELECT to_regclass('nina_auth.should_rollback') AS table_name"))[0].table_name, null);

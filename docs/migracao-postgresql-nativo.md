@@ -5,6 +5,12 @@ PostgreSQL comum na VPS, com backend próprio. Não instalar o template Supabase
 
 ## Situação real
 
+Atualização de 02/11/2026: as cinco contas foram importadas na VPS em 23/10;
+`/readyz` permanece pronto. Cadastros e histórico têm uma nova etapa preparada,
+com migração 0003, consultas autenticadas e ensaio de 125.174 registros. A
+aplicação na VPS e a atualização da API aguardam a confirmação correspondente.
+As telas ainda não foram migradas. Veja [o procedimento atual](migracao-historico.md).
+
 - A branch `codex/postgres-backend` separa este trabalho do código em produção.
 - A interface e as funções antigas ainda usam o SDK e os serviços do Supabase.
   A remoção completa **não** está implementada. A base da API própria está

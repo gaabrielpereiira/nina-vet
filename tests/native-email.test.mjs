@@ -51,7 +51,7 @@ before(async () => {
 });
 beforeEach(async () => {
   await db.exec(`RESET ROLE; TRUNCATE nina_mail.outbox, nina_auth.password_resets, nina_auth.sessions,
-    nina_auth.user_roles, nina_auth.users, nina_auth.login_windows;`);
+    nina_auth.user_roles, nina_auth.users, nina_auth.login_windows CASCADE;`);
   await db.query('INSERT INTO nina_auth.users (id,email,full_name,password_hash) VALUES ($1,$2,$3,$4)',
     [userId, 'agent@example.com', 'Agente sintético', passwordHash]);
   await db.query('INSERT INTO nina_auth.user_roles VALUES ($1,$2)', [userId, 'user']);
