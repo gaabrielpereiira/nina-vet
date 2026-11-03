@@ -80,3 +80,19 @@ incompatibilizaria o backend. Para suspender edição, revogar os grants de
 INSERT/UPDATE por coluna concedidos nesta etapa, mantendo a API compatível
 com a migração 0004. A interface anterior de consulta (`2fd56a9`) pode ser
 republicada com essa API. Qualquer correção precisa preservar dados e recibos.
+
+## Verificação do driver PostgreSQL da VPS
+
+Antes de liberar a interface, executar `node scripts/smoke-clinical-writes.mjs`
+no container da API, como seu usuário normal e usando a configuração existente.
+O script recusa papéis administrativos do banco, usa internamente um administrador já
+ativo da clínica, não cria sessão/token e força rollback de todas as gravações
+sintéticas. Não imprime identidades, valores clínicos ou credenciais. Não é
+um endpoint público e não envia mensagens ou e-mails.
+
+O ensaio cobre o driver de produção (postgres.js), incluindo serialização de
+JSONB, replay idempotente, revisão, vínculos e cancelamento. PGlite e postgres.js
+têm regras diferentes de serialização de parâmetros JSON: enviar o objeto do
+recibo diretamente, deixando o driver serializar uma vez. Não enviar uma string
+JSON já serializada a esse campo. O sinal esperado é
+`NINA_RUNTIME_WRITE_SMOKE_OK_ROLLED_BACK`, com saída zero.

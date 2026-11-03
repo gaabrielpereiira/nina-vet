@@ -139,7 +139,7 @@ export function createClinicWriter(db, auth) {
      [user.id,entity,saved.id,id ? 'update' : 'create',keys.filter(k=>k!=='user_id')]);
     const result = { data: saved };
     await tx.query('INSERT INTO nina_clinic.write_receipts(actor_id,operation_id,fingerprint,result) VALUES($1,$2,$3,$4)',
-     [user.id,body.operation_id,fingerprint,JSON.stringify(result)]);
+     [user.id,body.operation_id,fingerprint,result]);
     return result;
    });
   } catch (error) {
