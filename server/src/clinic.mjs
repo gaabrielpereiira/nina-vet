@@ -3,7 +3,7 @@ import { ApiError } from './errors.mjs';
 const invalid = () => new ApiError(400, 'INVALID_QUERY', 'Confira os filtros da consulta.');
 const missing = () => new ApiError(404, 'NOT_FOUND', 'Registro não encontrado.');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-const contactColumns = `id, name, call_name, phone_number, email, tags, notes,
+const contactColumns = `revision, id, name, call_name, phone_number, email, tags, notes,
   is_business, is_blocked, vetsoft_client_id, first_contact_date, last_activity, created_at, updated_at`;
 
 function filters(url, allowed) {
@@ -56,10 +56,27 @@ export function createClinic(db, auth) {
       }
       if (suffix === 'procedures') {
         const f = filters(url, ['limit', 'offset', 'q']);
-        return page(await tx.query(`SELECT id, name, description, category, requirements,
+        return page(await tx.query(`SELECT revision, id, name, description, category, requirements,
             price_type, price, price_min, price_max, duration_minutes, is_active, source
           FROM nina_clinic.procedures WHERE $1 = '' OR strpos(lower(name), lower($1)) > 0
           ORDER BY name, id LIMIT $2 OFFSET $3`, [f.q, f.limit + 1, f.offset]), f);
+      }
+      const single = suffix.match(/^(appointments|procedures)\/([^/]+)$/);
+      if (single) {
+        if (!uuid.test(single[2])) throw invalid();
+        filters(url, []);
+        const columns = single[1] === 'appointments' ? 'revision,id,title,description,date::text,time::text,duration,type,status,contact_id,animal_id,procedure_id' : 'revision,id,name,description,category,requirements,price_type,price,price_min,price_max,duration_minutes,is_active';
+        const [row] = await tx.query(`SELECT ${columns} FROM nina_clinic.${single[1]} WHERE id=$1`, [single[2]]);
+        if (!row) throw missing();
+        return { data: row };
+      }
+      const pet = suffix.match(/^contacts\/([^/]+)\/animals\/([^/]+)$/);
+      if (pet) {
+        if (!uuid.test(pet[1]) || !uuid.test(pet[2])) throw invalid();
+        filters(url, []);
+        const [row] = await tx.query('SELECT revision,id,contact_id,name,species,breed,sex,birth_date::text,notes FROM nina_clinic.animals WHERE contact_id=$1 AND id=$2',pet.slice(1));
+        if (!row) throw missing();
+        return { data: row };
       }
       const match = suffix.match(/^contacts\/([^/]+)(?:\/(animals|appointments|messages))?$/);
       let contactId = null;
@@ -70,11 +87,11 @@ export function createClinic(db, auth) {
         if (!contact) throw missing();
         if (!match[2]) { filters(url, []); return { data: contact }; }
         if (match[2] === 'animals') {
-          const f = filters(url, ['limit', 'offset']);
-          return page(await tx.query(`SELECT id, contact_id, name, species, breed, sex,
+          const f = filters(url, ['limit', 'offset', 'q']);
+          return page(await tx.query(`SELECT revision, id, contact_id, name, species, breed, sex,
               birth_date::text, notes, vetsoft_animal_id FROM nina_clinic.animals
-            WHERE contact_id = $1 ORDER BY created_at, id LIMIT $2 OFFSET $3`,
-          [contactId, f.limit + 1, f.offset]), f);
+            WHERE contact_id = $1 AND ($4 = '' OR strpos(lower(name),lower($4)) > 0) ORDER BY created_at, id LIMIT $2 OFFSET $3`,
+          [contactId, f.limit + 1, f.offset, f.q]), f);
         }
         if (match[2] === 'messages') {
           const f = filters(url, ['limit', 'offset']);
@@ -87,7 +104,7 @@ export function createClinic(db, auth) {
       }
       if (suffix === 'appointments' || match?.[2] === 'appointments') {
         const f = filters(url, ['limit', 'offset', 'from', 'to']);
-        return page(await tx.query(`SELECT a.id, a.title, a.description, a.date::text,
+        return page(await tx.query(`SELECT a.revision, a.id, a.title, a.description, a.date::text,
             a.time::text, a.duration, a.type, a.status, a.contact_id, a.animal_id,
             a.procedure_id, c.name AS contact_name, p.name AS procedure_name, n.name AS animal_name
           FROM nina_clinic.appointments a

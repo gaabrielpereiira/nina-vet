@@ -121,7 +121,7 @@ test('clinic: dates filter appointments and unknown routes cannot expose other t
   const procedures = await (await app(request('/v1/clinic/procedures?q=consulta'))).json();
   assert.equal(procedures.data[0].id, procedureId);
   assert.equal((await app(request('/v1/clinic/nina_settings'))).status, 404);
-  assert.equal((await app(request('/v1/clinic/contacts', { method: 'POST' }))).status, 404);
+  assert.equal((await app(request('/v1/clinic/contacts', { method: 'POST' }))).status, 415);
 });
 
 test('clinic: RLS denies missing, unassigned and disabled identities, including direct SQL', async () => {

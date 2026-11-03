@@ -17,8 +17,9 @@ A interface nativa em `src/native/` oferece login, busca e paginação de tutore
 animais, agenda, procedimentos e histórico de mensagens. O ponto de entrada e
 o bundle de produção usam somente a API própria e não carregam Supabase/Lovable.
 
-**A migração completa ainda não terminou.** Esta interface permite consulta.
-Edição, envio de mensagens, IA, WhatsApp, VetSoft, mídias, tempo real e gestão da
+**A migração completa ainda não terminou.** A interface de consulta já está na VPS. Criação/edição clínica foi implementada
+e testada na etapa seguinte, com ativação coordenada do banco/API ainda pendente.
+Envio de mensagens, IA, WhatsApp, VetSoft, mídias, tempo real e gestão da
 equipe ainda precisam ser portados e verificados. O código antigo permanece no
 repositório como referência, fora do ponto de entrada da interface publicada;
 suas dependências ainda não foram eliminadas do repositório.
@@ -53,7 +54,7 @@ npm run typecheck
 npm run build
 ```
 
-Os 104 testes passaram com dados sintéticos, incluindo o contrato do cliente
+Os 115 testes passaram com dados sintéticos, incluindo o contrato do cliente
 nativo. A interface foi também verificada no navegador com API local e dados
 sintéticos. O titular deve validar seu acesso real digitando a senha diretamente
 no site. A API publicada respondeu normalmente em HTTPS nos testes da VPS.
@@ -69,3 +70,7 @@ Ela não precisa de variáveis Supabase. Veja [a publicação da interface nativ
 
 O acompanhamento e os critérios de conclusão estão em
 [docs/migracao-postgresql-nativo.md](docs/migracao-postgresql-nativo.md).
+
+A etapa de gravação, suas permissões e a publicação coordenada estão em
+[edição nativa](docs/edicao-nativa.md). Não publicar essa etapa sobre um banco
+ainda com apenas três migrações.

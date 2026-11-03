@@ -2,16 +2,22 @@
 
 Esta pasta contém a primeira parte do backend próprio, sem dependências do
 Supabase ou do Lovable. **Ainda não substitui o sistema em produção.**
-O frontend existente continua usando Supabase. Não publicar a Nina nova antes
-de migrar dados, permissões, telas, arquivos, tempo real e integrações.
+A interface nativa de consulta já está na VPS e usa esta API. O código legado
+permanece fora do ponto de entrada. Arquivos, tempo real e integrações ainda
+precisam ser portados; a migração completa continua em andamento.
 
 ## Implementado nesta etapa
 
 - Consultas de contatos, animais, procedimentos, agenda e histórico de mensagens
-  com sessão nativa, RLS, paginação e papel de banco somente para leitura.
+  com sessão nativa, RLS e paginação. A etapa de escrita acrescenta permissões
+  por coluna, revisão e recibos de operações; sua ativação é coordenada.
 - Migração 0003 e preparador privado da importação das seis tabelas; filas e
   credenciais de integração não são copiadas. Consulte
   [a aplicação coordenada](../docs/migracao-historico.md) antes de implantar.
+
+- Criação e edição clínica, com validação, revisão, idempotência e auditoria.
+  Procedimentos exigem administrador. Nenhuma rota exclui registros. Veja
+  [a ativação da gravação](../docs/edicao-nativa.md).
 
 - API HTTP em Node.js, porta padrão 3000, com processo sem privilégios no Docker.
 - Pool limitado de conexões PostgreSQL, consultas parametrizadas e timeout.
@@ -60,7 +66,7 @@ Cada conta pode manter até 10 sessões, com duração padrão de oito horas.
 O envio fica desligado por padrão (`EMAIL_ENABLED=false`). Antes de ativar,
 concluir a migração da tela `/auth/set-password` para a API própria, aplicar as
 duas migrações, preparar os grants do papel limitado e validar a entrega com
-um destinatário autorizado. A tela atual ainda usa Supabase.
+um destinatário autorizado. A tela nativa já usa a API própria; a entrega real ainda precisa de validação.
 
 Para ativar depois, o processo HTTP precisa de `EMAIL_ENABLED=true`,
 `RESEND_API_KEY`, `EMAIL_FROM` e `EMAIL_ENCRYPTION_KEY` (32 bytes aleatórios,

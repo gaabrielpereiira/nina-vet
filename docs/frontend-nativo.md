@@ -8,6 +8,10 @@ importadas. Não oferece escrita clínica, envio de mensagens, cadastro público
 ou integrações ainda não portadas. O código antigo é referência e não deve ser
 religado ao ponto de entrada como atalho para disponibilizar funções.
 
+A etapa seguinte acrescenta gravação clínica, com revisão e recibos de operações.
+Sua ativação exige publicação coordenada do banco/API/interface; consulte
+[edição nativa](edicao-nativa.md).
+
 ## Autenticação e dados
 
 Todas as chamadas incluem `credentials: include`. A API mantém a sessão no

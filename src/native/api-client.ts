@@ -2,23 +2,36 @@ export interface NativeUser { id: string; email: string; full_name: string; role
 export interface NativeSession { user: NativeUser; expires_at: string }
 export interface Page<T> { data: T[]; next_offset: number | null }
 export interface Contact {
-  id: string; name: string | null; call_name: string | null; phone_number: string;
+  revision: number; id: string; name: string | null; call_name: string | null; phone_number: string;
   email: string | null; tags: string[] | null; notes: string | null;
   is_blocked: boolean; first_contact_date: string; last_activity: string;
 }
-export interface Animal { id: string; name: string; species: string | null; breed: string | null;
+export interface Animal { revision: number; contact_id: string; id: string; name: string; species: string | null; breed: string | null;
   sex: string | null; birth_date: string | null; notes: string | null }
-export interface Appointment { id: string; title: string; description: string | null; date: string;
+export interface Appointment { revision: number; contact_id: string | null; animal_id: string | null; procedure_id: string | null; type: string; id: string; title: string; description: string | null; date: string;
   time: string; status: string | null; contact_name: string | null; animal_name: string | null;
   procedure_name: string | null; duration: number }
 export interface Message { id: string; conversation_id: string; type: string; from_type: string;
   content: string | null; status: string; sent_at: string; created_at: string }
-export interface Procedure { id: string; name: string; description: string | null; category: string | null;
+export interface Procedure { revision: number; id: string; name: string; description: string | null; category: string | null;
   requirements: string | null; price_type: string; price: number | string | null;
   price_min: number | string | null; price_max: number | string | null;
   duration_minutes: number | null; is_active: boolean }
 
 const messages: Record<string, string> = {
+  BODY_TOO_LARGE: 'Reduza o tamanho das observações e tente novamente.',
+  VERSION_CONFLICT: 'Outra pessoa alterou este registro. Feche a edição, atualize a página e confira os dados antes de editar novamente.',
+  IDEMPOTENCY_CONFLICT: 'Esta operação já foi recebida. Feche a edição e atualize a página para conferir o resultado.',
+  DUPLICATE_PHONE: 'Já existe um tutor com esse telefone. Procure o cadastro existente.',
+  INVALID_RECORD: 'Confira os campos obrigatórios e os limites de cada campo.',
+  INVALID_PHONE: 'Informe um telefone válido com DDI e DDD, usando de 8 a 15 dígitos.',
+  INVALID_EMAIL: 'Confira o formato do e-mail.',
+  INVALID_DATE: 'Confira as datas. O nascimento não pode estar no futuro.',
+  INVALID_TIME: 'Informe um horário válido.',
+  INVALID_DURATION: 'Informe uma duração entre 5 e 1440 minutos.',
+  INVALID_PRICE: 'Confira os valores e o intervalo de preços.',
+  INVALID_LINK: 'Confira o tutor, o animal e o procedimento. O animal deve pertencer ao tutor e o procedimento deve estar ativo.',
+  FORBIDDEN: 'Sua conta não tem permissão para esta alteração.',
   INVALID_CREDENTIALS: 'E-mail ou senha inválidos.',
   TOO_MANY_ATTEMPTS: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
   AUTH_BUSY: 'Aguarde um instante antes de tentar novamente.',
@@ -87,7 +100,12 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     reset: (token: string, password: string) => request<{ ok: boolean }>('/v1/auth/reset-password', { body: { token, password } }),
     contacts: (q = '', offset = 0, signal?: AbortSignal) => list<Contact>('contacts', { q, limit: 50, offset }, signal),
     contact: async (id: string, signal?: AbortSignal) => (await request<{ data: Contact }>('/v1/clinic/contacts/' + encodeURIComponent(id), { signal, protected: true })).data,
-    animals: (id: string, offset = 0, signal?: AbortSignal) => list<Animal>('contacts/' + encodeURIComponent(id) + '/animals', { limit: 50, offset }, signal),
+    animals: (id: string, offset = 0, signal?: AbortSignal, q = '') => list<Animal>('contacts/' + encodeURIComponent(id) + '/animals', { limit: 50, offset, q }, signal),
+    animal: async (contact: string, id: string, signal?: AbortSignal) => (await request<{ data: Animal }>('/v1/clinic/contacts/' + encodeURIComponent(contact) + '/animals/' + encodeURIComponent(id), { signal, protected: true })).data,
+    appointment: async (id: string, signal?: AbortSignal) => (await request<{ data: Appointment }>('/v1/clinic/appointments/' + encodeURIComponent(id), { signal, protected: true })).data,
+    procedure: async (id: string, signal?: AbortSignal) => (await request<{ data: Procedure }>('/v1/clinic/procedures/' + encodeURIComponent(id), { signal, protected: true })).data,
+    save: (resource: string, data: Record<string, unknown>, operation_id: string, version?: number) =>
+      request<{ data: { id: string; revision: number } }>('/v1/clinic/' + resource, { body: { data, operation_id, ...(version === undefined ? {} : { version }) }, protected: true }),
     contactAppointments: (id: string, offset = 0, signal?: AbortSignal) => list<Appointment>('contacts/' + encodeURIComponent(id) + '/appointments', { limit: 20, offset }, signal),
     contactMessages: (id: string, offset = 0, signal?: AbortSignal) => list<Message>('contacts/' + encodeURIComponent(id) + '/messages', { limit: 30, offset }, signal),
     appointments: (from: string, to: string, offset = 0, signal?: AbortSignal) => list<Appointment>('appointments', { from, to, limit: 50, offset }, signal),

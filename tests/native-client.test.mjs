@@ -75,3 +75,12 @@ test('native client: reset bearer is consumed only from the expected fragment be
   assert.equal(consumeRecoveryToken({ pathname: '/auth/set-password', hash: '', search: '?token=' + token }, () => assert.fail()), '');
   assert.equal(consumeRecoveryToken({ pathname: '/auth/set-password', hash: '#token=invalid', search: '' }, () => {}), '');
 });
+
+test('native client: record writes carry operation/version in JSON and keep cookie authentication', async () => {
+  const calls=[]; const client=createNativeClient('https://api.example.com',async(url,options)=>{calls.push({url,options});return Response.json({data:{id:'saved',revision:2}});});
+  const operation='11111111-1111-4111-8111-111111111111';
+  await client.save('contacts/22222222-2222-4222-8222-222222222222',{name:'Edited'},operation,1);
+  assert.equal(calls[0].options.method,'POST');assert.equal(calls[0].options.credentials,'include');
+  assert.deepEqual(JSON.parse(calls[0].options.body),{data:{name:'Edited'},operation_id:operation,version:1});
+  assert.ok(!calls[0].url.includes(operation));
+});

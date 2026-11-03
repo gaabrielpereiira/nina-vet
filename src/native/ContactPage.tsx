@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, PawPrint } from 'lucide-react';
 import { client } from './client';
+import { ContactEditor, AnimalEditor, AppointmentEditor } from './Editors';
 import type { Animal, Appointment, Contact, Message, Page } from './api-client';
 import { AppointmentRows } from './Lists';
 import { dateLabel, ErrorNotice, Loading } from './ui';
@@ -13,6 +14,12 @@ const media: Record<string, string> = { audio: 'Mensagem de áudio', image: 'Ima
 
 export function ContactPage() {
   const { id = '' } = useParams();
+  const [editingContact,setEditingContact] = useState(false);
+  const [editingAnimal,setEditingAnimal] = useState<Animal | null | undefined>(undefined);
+  const [editingAppointment,setEditingAppointment] = useState<string | null>(null);
+  const [success,setSuccess] = useState<string | null>(null);
+  useEffect(()=>{setEditingContact(false);setEditingAnimal(undefined);setEditingAppointment(null);setSuccess(null);},[id]);
+  const saved = (message: string) => {setRevision(n=>n+1);setSuccess(message);};
   const [details, setDetails] = useState<Details | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
@@ -52,7 +59,12 @@ export function ContactPage() {
     {current?.[section].next_offset !== null && <button className="button secondary load-more" disabled={pending !== null} onClick={() => more(section)}>{pending === section ? 'Carregando…' : 'Carregar mais'}</button>}
   </>;
   return <><Link className="back-link" to="/contatos"><ArrowLeft size={17} aria-hidden="true" /> Todos os cadastros</Link>
+    {success && <p className="success-notice" role="status">{success}</p>}
     {error ? <ErrorNotice message={error} retry={() => setRevision(n => n + 1)} /> : !current ? <Loading>Carregando histórico…</Loading> : <>
+      <div className="page-actions"><button className="button secondary" onClick={()=>setEditingContact(true)}>Editar tutor</button><button className="button primary" onClick={()=>setEditingAnimal(null)}>Novo animal</button></div>
+      {editingContact && <ContactEditor contact={current.contact} close={()=>setEditingContact(false)} saved={()=>saved("Tutor salvo.")} />}
+      {editingAnimal !== undefined && <AnimalEditor animal={editingAnimal ?? undefined} contactId={id} close={()=>setEditingAnimal(undefined)} saved={()=>saved("Animal salvo.")} />}
+      {editingAppointment !== null && <AppointmentEditor appointmentId={editingAppointment} close={()=>setEditingAppointment(null)} saved={()=>saved("Agendamento salvo.")} />}
       <header className="contact-header"><div className="avatar">{(current.contact.name || current.contact.call_name || '?').slice(0, 1).toUpperCase()}</div>
         <div><p className="eyebrow">Cadastro do tutor</p><h1>{current.contact.name || current.contact.call_name || 'Sem nome'}</h1><p className="muted">{current.contact.phone_number}{current.contact.email ? ` · ${current.contact.email}` : ''}</p></div></header>
       <div className="detail-grid"><aside className="panel profile"><h2>Informações</h2><dl><dt>Nome de preferência</dt><dd>{current.contact.call_name || '—'}</dd><dt>Primeiro contato</dt><dd>{dateLabel(current.contact.first_contact_date)}</dd><dt>Última atividade</dt><dd>{dateLabel(current.contact.last_activity)}</dd></dl>
@@ -62,8 +74,8 @@ export function ContactPage() {
           {!current.animals.data.length ? <p className="muted">Nenhum animal vinculado a este tutor.</p> : <div className="animal-grid">{current.animals.data.map(animal => <article className="animal" key={animal.id}>
             <h3>{animal.name}</h3><p className="muted">{[animal.species, animal.breed].filter(Boolean).join(' · ') || 'Espécie não informada'}</p>
             <dl><dt>Sexo</dt><dd>{animal.sex || '—'}</dd><dt>Nascimento</dt><dd>{dateLabel(animal.birth_date)}</dd></dl>
-            {animal.notes && <p className="preserve animal-notes">{animal.notes}</p>}</article>)}</div>}{continuation('animals')}</section>
-          <section className="panel detail-section"><h2>Agendamentos</h2>{current.appointments.data.length ? <AppointmentRows rows={current.appointments.data} /> : <p className="muted">Nenhum agendamento registrado para este tutor.</p>}{continuation('appointments')}</section>
+            {animal.notes && <p className="preserve animal-notes">{animal.notes}</p>}<button className="button secondary" aria-label={"Editar animal "+animal.name} onClick={()=>setEditingAnimal(animal)}>Editar</button></article>)}</div>}{continuation('animals')}</section>
+          <section className="panel detail-section"><h2>Agendamentos</h2>{current.appointments.data.length ? <AppointmentRows rows={current.appointments.data} edit={setEditingAppointment} /> : <p className="muted">Nenhum agendamento registrado para este tutor.</p>}{continuation('appointments')}</section>
           <section className="panel detail-section"><h2>Histórico de conversas</h2><p className="muted">Mensagens mais recentes primeiro.</p>
             {!current.messages.data.length ? <p className="muted">Nenhuma mensagem registrada.</p> : <ol className="message-list">{current.messages.data.map(message => <li className={'message ' + (message.from_type === 'user' ? 'from-tutor' : '')} key={message.id}>
               <header><strong>{authors[message.from_type] || 'Mensagem'}</strong><time dateTime={message.sent_at}>{dateLabel(message.sent_at, true)}</time></header>
