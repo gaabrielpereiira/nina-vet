@@ -2,6 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNativeClient, ClientError, consumeRecoveryToken } from '../src/native/api-client.ts';
 
+test('native client: AI tests send only a scenario ID using native cookie authentication',async()=>{
+  const calls=[],signal=new AbortController().signal;
+  const client=createNativeClient('https://api.nina.example.com',async(url,options)=>{
+    calls.push({url,options});return Response.json(options.body ? {case_id:'preco',reply:'Resposta fictícia.',model:'test-model',elapsed_ms:10} :
+      {enabled:true,cases:[{id:'preco',title:'Valor',message:'Exemplo fictício',expectation:'Conferir com a equipe'}]});
+  });
+  assert.equal((await client.aiTestCases(signal)).cases.length,1); assert.equal((await client.aiTest('preco',signal)).reply,'Resposta fictícia.');
+  assert.deepEqual(JSON.parse(calls[1].options.body),{case_id:'preco'});
+  for(const {url,options} of calls){assert.equal(url,'https://api.nina.example.com/v1/ai/tests');assert.equal(options.credentials,'include');assert.equal(options.signal,signal);}
+});
+test('native client: malformed and mismatched AI responses are rejected',async()=>{
+  for(const body of [null,{}, {case_id:'other',reply:'Answer',model:'test',elapsed_ms:1}, {case_id:'preco',reply:'',model:'test',elapsed_ms:1}, {case_id:'preco',reply:'Answer',model:'test',elapsed_ms:-1}]) {
+    await assert.rejects(createNativeClient('https://api.example.com',async()=>Response.json(body)).aiTest('preco'),{code:'INVALID_RESPONSE'});
+  }
+  for(const body of [null,{}, {enabled:'true',cases:[]}, {enabled:true,cases:[{}]}]) {
+    await assert.rejects(createNativeClient('https://api.example.com',async()=>Response.json(body)).aiTestCases(),{code:'INVALID_RESPONSE'});
+  }
+});
+
 test('native client: cookie requests use only the configured API origin and never bearer tokens', async () => {
   const calls = [];
   const client = createNativeClient('https://api.nina.example.com', async (url, options) => {

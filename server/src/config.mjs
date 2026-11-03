@@ -49,6 +49,13 @@ function emailConfig(env) {
     pollMilliseconds: 5000, maxAttempts: 5 });
 }
 
+function aiTestConfig(env) {
+  if (!['true', 'false', undefined].includes(env.AI_TESTS_ENABLED)) throw new Error('Invalid AI_TESTS_ENABLED');
+  if (env.AI_TESTS_ENABLED !== 'true') return Object.freeze({ enabled: false });
+  if (!/^[A-Za-z0-9_-]{20,200}$/.test(env.GEMINI_API_KEY ?? '')) throw new Error('Missing or invalid GEMINI_API_KEY');
+  return Object.freeze({ enabled: true, key: env.GEMINI_API_KEY });
+}
+
 export function readConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'production';
   if (!['production', 'development', 'test'].includes(nodeEnv)) throw new Error('Invalid NODE_ENV');
@@ -65,5 +72,6 @@ export function readConfig(env = process.env) {
     loginAccountLimit: 10,
     loginGlobalLimit: 200,
     email: emailConfig(env),
+    aiTests: aiTestConfig(env),
   });
 }

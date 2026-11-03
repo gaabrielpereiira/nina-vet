@@ -11,6 +11,13 @@ o titular confirmou o login com a conta anterior. O bundle publicado usa a API
 própria, sem runtime Supabase/Lovable. Criação/edição clínica foi ativada na VPS,
 com quatro migrações, permissões por coluna e ensaio real com rollback. Veja
 [a edição nativa](edicao-nativa.md) e [a interface](frontend-nativo.md).
+A recuperação de senha também foi ativada em 03/11/2026; o teste autorizado
+pela interface teve entrega confirmada no Resend. O titular confirmou
+o recebimento e optou por manter a senha atual. Veja [a recuperação](recuperacao-senha.md).
+
+A etapa de ensaio da integração própria de IA está preparada; veja
+[IA nativa e próximas partes](ia-nativa.md). A conexão real ainda precisa ser
+ativada e validada.
 
 As anotações abaixo registram etapas anteriores e decisões da migração. Para
 o estado executável atual, usar o README e o procedimento específico da etapa.

@@ -25,9 +25,14 @@ equipe ainda precisam ser portados e verificados. O código antigo permanece no
 repositório como referência, fora do ponto de entrada da interface publicada;
 suas dependências ainda não foram eliminadas do repositório.
 
-O envio de recuperação de senha depende de `EMAIL_ENABLED=true` na API. Durante
-a preparação ele permanece desativado; a interface informa a indisponibilidade.
-Não há cadastro público de usuários.
+A recuperação de senha está ativa na VPS desde 03/11/2026, com
+`EMAIL_ENABLED=true`. Um único teste autorizado pela interface recebeu status
+**Delivered** no Resend. A troca real de senha fica a cargo do titular. Veja
+[o procedimento de recuperação](docs/recuperacao-senha.md). Não há cadastro público de usuários.
+
+A etapa seguinte de IA está preparada em `/nina/testes`, com exemplos fictícios
+e acesso de administrador. A conexão real ainda precisa de ativação e validação.
+Veja [o ensaio de IA e as próximas partes](docs/ia-nativa.md).
 
 ## Desenvolvimento
 

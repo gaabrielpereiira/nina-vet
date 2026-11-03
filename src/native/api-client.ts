@@ -1,6 +1,8 @@
 export interface NativeUser { id: string; email: string; full_name: string; roles: ('admin' | 'user')[] }
 export interface NativeSession { user: NativeUser; expires_at: string }
 export interface Page<T> { data: T[]; next_offset: number | null }
+export interface AiTestCase { id: string; title: string; message: string; expectation: string }
+export interface AiTestResult { case_id: string; reply: string; model: string; elapsed_ms: number }
 export interface Contact {
   revision: number; id: string; name: string | null; call_name: string | null; phone_number: string;
   email: string | null; tags: string[] | null; notes: string | null;
@@ -19,6 +21,10 @@ export interface Procedure { revision: number; id: string; name: string; descrip
   duration_minutes: number | null; is_active: boolean }
 
 const messages: Record<string, string> = {
+  INVALID_AI_TEST: 'Escolha um dos exemplos disponíveis.',
+  AI_UNAVAILABLE: 'A conexão com a IA está indisponível. Tente novamente mais tarde.',
+  AI_PROVIDER_LIMIT: 'O limite do provedor de IA foi atingido. Tente novamente mais tarde.',
+  AI_INVALID_RESPONSE: 'A Nina não conseguiu concluir a resposta. Tente novamente mais tarde.',
   BODY_TOO_LARGE: 'Reduza o tamanho das observações e tente novamente.',
   VERSION_CONFLICT: 'Outra pessoa alterou este registro. Feche a edição, atualize a página e confira os dados antes de editar novamente.',
   IDEMPOTENCY_CONFLICT: 'Esta operação já foi recebida. Feche a edição e atualize a página para conferir o resultado.',
@@ -98,6 +104,20 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     logout: () => request<{ ok: boolean }>('/v1/auth/logout', { body: {}, protected: true }),
     forgot: (email: string) => request<{ message: string }>('/v1/auth/forgot-password', { body: { email: email.trim() } }),
     reset: (token: string, password: string) => request<{ ok: boolean }>('/v1/auth/reset-password', { body: { token, password } }),
+    aiTestCases: async (signal?: AbortSignal) => {
+      const data = await request<{ enabled: boolean; cases: AiTestCase[] }>('/v1/ai/tests', { signal, protected: true });
+      if (!data || typeof data !== 'object' || typeof data.enabled !== 'boolean' || !Array.isArray(data.cases) || data.cases.length > 10 || data.cases.some(item =>
+        !item || !['id','title','message','expectation'].every(key => typeof item[key as keyof AiTestCase] === 'string'))) {
+        throw new ClientError(502, 'INVALID_RESPONSE');
+      }
+      return data;
+    },
+    aiTest: async (case_id: string, signal?: AbortSignal) => {
+      const result = await request<AiTestResult>('/v1/ai/tests', { body: { case_id }, signal, protected: true });
+      if (!result || typeof result !== 'object' || result.case_id !== case_id || typeof result.reply !== 'string' || !result.reply.trim() || result.reply.length > 6000 ||
+          typeof result.model !== 'string' || !Number.isFinite(result.elapsed_ms) || result.elapsed_ms < 0) throw new ClientError(502, 'INVALID_RESPONSE');
+      return result;
+    },
     contacts: (q = '', offset = 0, signal?: AbortSignal) => list<Contact>('contacts', { q, limit: 50, offset }, signal),
     contact: async (id: string, signal?: AbortSignal) => (await request<{ data: Contact }>('/v1/clinic/contacts/' + encodeURIComponent(id), { signal, protected: true })).data,
     animals: (id: string, offset = 0, signal?: AbortSignal, q = '') => list<Animal>('contacts/' + encodeURIComponent(id) + '/animals', { limit: 50, offset, q }, signal),
