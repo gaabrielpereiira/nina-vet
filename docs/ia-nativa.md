@@ -20,11 +20,13 @@ instruções fixas de recepção. A resposta não grava prontuários ou mensagen
 - Endpoint fixo HTTPS `generativelanguage.googleapis.com`, sem redirecionamentos.
 - Chave no header `x-goog-api-key`; nenhuma chave em URL, log ou resposta pública.
 - Uma chamada por teste, sem retries automáticos; até 512 tokens de saída e
-  15 segundos de espera. Saídas truncadas, bloqueadas ou inválidas não são exibidas.
+  45 segundos de espera. Saídas truncadas, bloqueadas ou inválidas não são exibidas.
 - Limites persistidos no PostgreSQL: três tentativas por minuto na clínica;
   vinte por dia na clínica e dez por administrador. As janelas diárias usam UTC.
   Falhas do provedor também consomem tentativas. Esses limites controlam chamadas,
   não substituem o orçamento/configuração de cobrança da conta Google.
+- Falhas registram somente categoria, código HTTP e duração; sem chave, prompts
+  ou respostas. O prazo foi ampliado após timeouts observados no teste da VPS.
 
 A ativação não requer nova migração nem grants adicionais. Reutiliza somente a
 sessão e as permissões existentes da API. Para desligar os testes, definir

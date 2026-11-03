@@ -93,7 +93,12 @@ test('native AI: daily clinic quota independently prevents provider requests', a
 test('native AI: failed provider requests count toward quota without leaking diagnostics', async () => {
   let attempts=0; app=makeApp({aiFetch:async()=>{attempts++;return new Response(env.GEMINI_API_KEY+' private diagnostics',{status:403});}});
   for(let i=0;i<3;i++) {const response=await app(request({case_id:'preco'})); assert.equal(response.status,503);assert.ok(!(await response.text()).includes(env.GEMINI_API_KEY));}
-  assert.equal((await app(request({case_id:'preco'}))).status,429); assert.equal(attempts,3); assert.deepEqual(logs,[]);
+  assert.equal((await app(request({case_id:'preco'}))).status,429); assert.equal(attempts,3);
+  assert.equal(logs.length,3);
+  for(const entry of logs) {
+    assert.equal(entry.event,'ai_provider_failed'); assert.equal(entry.http_status,403); assert.equal(entry.code,'AI_UNAVAILABLE');
+    assert.ok(!JSON.stringify(entry).includes(env.GEMINI_API_KEY)); assert.ok(!JSON.stringify(entry).includes('private diagnostics'));
+  }
 });
 test('native AI: invalid configuration fails closed while disabled mode needs no key',()=>{
   assert.equal(readConfig({...env,AI_TESTS_ENABLED:undefined,GEMINI_API_KEY:undefined}).aiTests.enabled,false);

@@ -43,7 +43,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
   const recovery = createPasswordRecovery(db, config);
   const clinic = createClinic(db, auth);
   const writeClinic = createClinicWriter(db, auth);
-  const aiTests = createAiTests(db, auth, config, aiFetch);
+  const aiTests = createAiTests(db, auth, config, aiFetch, log);
   return async function handle(request) {
     const requestId = randomUUID();
     const headers = new Headers({

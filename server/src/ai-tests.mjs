@@ -49,19 +49,23 @@ async function boundedJSON(response) {
   } finally { reader.releaseLock(); }
 }
 
-export function createGeminiTestProvider(config, fetcher = fetch, timeoutMilliseconds = 15000) {
+export function createGeminiTestProvider(config, fetcher = fetch, timeoutMilliseconds = 45000, log = () => {}) {
   return async scenario => {
     if (!config?.enabled) throw unavailable();
+    const started = Date.now();
+    const signal = AbortSignal.timeout(timeoutMilliseconds);
+    let httpStatus;
     try {
       // No automatic paid retries, and no redirects carrying the API key.
       const response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: 'POST', redirect: 'error',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': config.key },
-        signal: AbortSignal.timeout(timeoutMilliseconds),
+        signal,
         body: JSON.stringify({ systemInstruction: { parts: [{ text: instructions }] },
           contents: [{ role: 'user', parts: [{ text: scenario.message }] }],
           generationConfig: { maxOutputTokens: 512, candidateCount: 1 } }),
       });
+      httpStatus = response.status;
       if (!response.ok) {
         await response.body?.cancel();
         if (response.status === 429) throw new ApiError(503, 'AI_PROVIDER_LIMIT', 'O limite do provedor de IA foi atingido. Tente novamente mais tarde.');
@@ -78,14 +82,17 @@ export function createGeminiTestProvider(config, fetcher = fetch, timeoutMillise
       if (!reply || reply.length > 6000 || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(reply)) throw invalidResponse();
       return { reply, model };
     } catch (error) {
+      log({ event: 'ai_provider_failed', code: signal.aborted ? 'TIMEOUT' :
+        error instanceof ApiError ? error.code : 'NETWORK_ERROR',
+        http_status: httpStatus ?? null, elapsed_ms: Date.now() - started });
       if (error instanceof ApiError) throw error;
       throw unavailable();
     }
   };
 }
 
-export function createAiTests(db, auth, config, fetcher) {
-  const generate = createGeminiTestProvider(config.aiTests, fetcher);
+export function createAiTests(db, auth, config, fetcher, log) {
+  const generate = createGeminiTestProvider(config.aiTests, fetcher, 45000, log);
   const minute = createAttemptLimiter(db, { prefix: 'ai-test-minute:', windowSeconds: 60, globalLimit: 3, identityLimit: 3 });
   const daily = createAttemptLimiter(db, { prefix: 'ai-test-day:', windowSeconds: 86400, globalLimit: 20, identityLimit: 10 });
   return async (request, parseBody) => {
