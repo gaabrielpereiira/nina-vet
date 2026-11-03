@@ -30,8 +30,9 @@ A recuperação de senha está ativa na VPS desde 03/11/2026, com
 **Delivered** no Resend. A troca real de senha fica a cargo do titular. Veja
 [o procedimento de recuperação](docs/recuperacao-senha.md). Não há cadastro público de usuários.
 
-A etapa seguinte de IA está preparada em `/nina/testes`, com exemplos fictícios
-e acesso de administrador. A conexão real ainda precisa de ativação e validação.
+A integração própria com Gemini está ativa em `/nina/testes`, com exemplos
+fictícios e acesso de administrador. Os três exemplos foram validados na VPS.
+O atendimento automático e as regras reais da Nina ainda precisam ser migrados.
 Veja [o ensaio de IA e as próximas partes](docs/ia-nativa.md).
 
 ## Desenvolvimento
@@ -60,7 +61,7 @@ npm run typecheck
 npm run build
 ```
 
-Os 115 testes passaram com dados sintéticos, incluindo o contrato do cliente
+Os 130 testes passaram com dados sintéticos, incluindo o contrato do cliente
 nativo. A interface foi também verificada no navegador com API local e dados
 sintéticos. O titular deve validar seu acesso real digitando a senha diretamente
 no site. A API publicada respondeu normalmente em HTTPS nos testes da VPS.

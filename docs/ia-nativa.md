@@ -1,5 +1,19 @@
 # Integração nativa de IA — etapa de ensaio
 
+## Estado em 03/11/2026
+
+A página está publicada e `AI_TESTS_ENABLED=true` está salvo na API. Os três
+exemplos foram executados pela conta de administrador na interface real: consulta
+em 1,2 s, valor em 2,9 s e possível urgência em 1,1 s. A conta Gemini respondeu
+sem uso do gateway Lovable. Esta validação cobre a conexão e os exemplos fixos;
+não comprova equivalência com o orquestrador antigo nem atendimento clínico real.
+
+API publicada: `dbedf0927f3a985868e0b41c0963330bb2ec8b02`.
+Interface publicada: `d0558f7826953bdd065ced788947e9e9dcfab4ea`.
+Autodeploy desligado em ambos. As primeiras chamadas atingiram o prazo de 15 s;
+foi ampliado para 45 s e os três exemplos acima passaram pela interface.
+Nenhuma mensagem foi enviada ao WhatsApp.
+
 ## Escopo
 
 A página `/nina/testes` permite a administradores conferir três exemplos fictícios:
@@ -33,15 +47,15 @@ sessão e as permissões existentes da API. Para desligar os testes, definir
 `AI_TESTS_ENABLED=false` e publicar novamente apenas a API. Login, recuperação
 por e-mail e edição clínica são independentes dessa opção.
 
-## Validação antes da publicação
+## Validação
 
 A suíte completa passou com 130 testes, incluindo permissões, origem exata,
 revogação de sessões, quotas, restrição dos dados enviados, respostas malformadas,
 timeout e proteção dos segredos. Typecheck e build passaram. A interface foi
-exercitada localmente com usuário fictício e provedor simulado. Isso ainda não
-comprova a chave Google, a cota ou a disponibilidade do modelo na conta real.
+exercitada localmente com usuário fictício e provedor simulado. A chave e a disponibilidade do modelo foram depois confirmadas na VPS e os
+três exemplos acima responderam pela interface real.
 
-Publicar API e interface a partir da branch `codex/postgres-backend`, mantendo
+Para futuras publicações, usar API e interface a partir da branch `codex/postgres-backend`, mantendo
 os autodeploys desligados. Conferir HTTPS, `/readyz`, rejeição anônima e um teste
 fictício autenticado; registrar o resultado real antes de considerar esta etapa
 ativada. Não habilitar callbacks ou workers de envio como parte deste ensaio.
