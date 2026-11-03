@@ -30,6 +30,9 @@ precisam ser portados; a migração completa continua em andamento.
 - Consulta do usuário e das funções atuais a cada autenticação, bloqueando
   sessões de contas desabilitadas ou sem função de acesso.
 - Proteção por origem exata em operações POST, incluindo outros subdomínios.
+- Preparação de recebedor Zernio assinado, restrito à conta e com fila criptografada;
+  desligado por padrão e ainda não publicado. Não processa conversas nem envia mensagens.
+  Veja [estado e publicação coordenada](../docs/whatsapp-nativo.md).
 - Encerramento da sessão atual ou de todas as sessões do usuário.
 - Credencial de execução com acesso limitado e separada da credencial de DDL.
 - Recuperação de senha por Resend, com link de uso único válido por 20 minutos,

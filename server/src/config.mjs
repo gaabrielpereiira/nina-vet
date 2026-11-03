@@ -1,3 +1,5 @@
+import { hkdfSync } from 'node:crypto';
+
 function integer(value, fallback, min, max, name) {
   const parsed = value === undefined ? fallback : Number(value);
   if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
@@ -56,6 +58,21 @@ function aiTestConfig(env) {
   return Object.freeze({ enabled: true, key: env.GEMINI_API_KEY });
 }
 
+function zernioConfig(env) {
+  if (!['true', 'false', undefined].includes(env.ZERNIO_WEBHOOK_ENABLED)) throw new Error('Invalid ZERNIO_WEBHOOK_ENABLED');
+  if (env.ZERNIO_WEBHOOK_ENABLED !== 'true') return Object.freeze({ enabled: false });
+  if (!/^[\x21-\x7e]{32,256}$/.test(env.ZERNIO_WEBHOOK_SECRET ?? '')) throw new Error('Invalid ZERNIO_WEBHOOK_SECRET');
+  for (const name of ['ZERNIO_ACCOUNT_ID', 'ZERNIO_PROFILE_ID']) {
+    if (!/^[a-f0-9]{24}$/.test(env[name] ?? '')) throw new Error(`Invalid ${name}`);
+  }
+  if (!/^[a-fA-F0-9]{64}$/.test(env.EMAIL_ENCRYPTION_KEY ?? '')) throw new Error('Invalid EMAIL_ENCRYPTION_KEY');
+  // Domain-separated subkey: never encrypt stored data with a secret shared with Zernio.
+  const encryptionKey = Buffer.from(hkdfSync('sha256', Buffer.from(env.EMAIL_ENCRYPTION_KEY, 'hex'),
+    'nina-channels-v1', 'zernio-inbox-payload', 32));
+  return Object.freeze({ enabled: true, secret: env.ZERNIO_WEBHOOK_SECRET,
+    accountId: env.ZERNIO_ACCOUNT_ID, profileId: env.ZERNIO_PROFILE_ID, encryptionKey });
+}
+
 export function readConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'production';
   if (!['production', 'development', 'test'].includes(nodeEnv)) throw new Error('Invalid NODE_ENV');
@@ -73,5 +90,6 @@ export function readConfig(env = process.env) {
     loginGlobalLimit: 200,
     email: emailConfig(env),
     aiTests: aiTestConfig(env),
+    zernio: zernioConfig(env),
   });
 }

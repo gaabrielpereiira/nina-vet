@@ -27,7 +27,7 @@ export async function assertRuntimeRole(db) {
       r.rolreplication,
       pg_has_role(current_user, 'pg_database_owner', 'MEMBER') AS owns_database,
       EXISTS (SELECT 1 FROM pg_namespace n
-        WHERE n.nspname IN ('nina_auth', 'nina_meta', 'nina_mail', 'nina_clinic')
+        WHERE n.nspname IN ('nina_auth', 'nina_meta', 'nina_mail', 'nina_clinic', 'nina_channels')
         AND pg_has_role(current_user, n.nspowner, 'MEMBER')) AS owns_schema
     FROM pg_roles r WHERE r.rolname = current_user
   `);

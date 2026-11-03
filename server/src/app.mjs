@@ -7,6 +7,7 @@ import { createPasswordRecovery } from './password-recovery.mjs';
 import { createClinic } from './clinic.mjs';
 import { createClinicWriter } from './clinic-writes.mjs';
 import { createAiTests } from './ai-tests.mjs';
+import { createZernioWebhook } from './zernio-webhook.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -44,6 +45,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
   const clinic = createClinic(db, auth);
   const writeClinic = createClinicWriter(db, auth);
   const aiTests = createAiTests(db, auth, config, aiFetch, log);
+  const zernioWebhook = createZernioWebhook(db, config.zernio, log);
   return async function handle(request) {
     const requestId = randomUUID();
     const headers = new Headers({
@@ -83,11 +85,14 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
         headers.set('allow', 'GET, POST, OPTIONS');
         throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Método não permitido.');
       }
+      const path = new URL(request.url).pathname;
+      // Only this exact server-to-server route uses HMAC instead of browser CSRF validation.
+      const webhook = request.method === 'POST' && path === '/v1/webhooks/zernio';
       // SameSite alone does not protect against other subdomains of the same site.
-      if (request.method === 'POST' && !allowedOrigin) {
+      if (request.method === 'POST' && !allowedOrigin && !webhook) {
         throw new ApiError(403, 'ORIGIN_REQUIRED', 'Origem não permitida.');
       }
-      const path = new URL(request.url).pathname;
+      if (webhook) return respond(await zernioWebhook(request));
       if (request.method === 'GET' && path === '/healthz') return respond({ status: 'ok' });
       if (request.method === 'GET' && path === '/readyz') {
         try {
