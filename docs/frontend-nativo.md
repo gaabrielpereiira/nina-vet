@@ -1,15 +1,16 @@
-# Interface nativa de consulta
+# Interface nativa da Nina
 
 ## Escopo
 
 O ponto de entrada `src/main.tsx` carrega `src/native/NativeApp.tsx`. A interface
 permite consultar tutores, animais, agendamentos, procedimentos e mensagens
-importadas. Não oferece escrita clínica, envio de mensagens, cadastro público
-ou integrações ainda não portadas. O código antigo é referência e não deve ser
+importadas. Desde 03/11/2026 também permite criação e edição clínica, com
+procedimentos restritos a administradores. Não oferece envio de mensagens,
+cadastro público ou integrações ainda não portadas. O código antigo é referência e não deve ser
 religado ao ponto de entrada como atalho para disponibilizar funções.
 
-A etapa seguinte acrescenta gravação clínica, com revisão e recibos de operações.
-Sua ativação exige publicação coordenada do banco/API/interface; consulte
+A gravação clínica usa revisão e recibos de operações e foi ativada com a
+quarta migração e a publicação coordenada do banco/API/interface; consulte
 [edição nativa](edicao-nativa.md).
 
 ## Autenticação e dados

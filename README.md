@@ -10,15 +10,16 @@ importados na VPS. Veja [o procedimento desta etapa](docs/migracao-historico.md)
 
 A pasta `server/` contém a base da API própria em Node.js e PostgreSQL, sem
 dependências Supabase/Lovable: login, sessões revogáveis, recuperação de senha
-e integração Resend com fila criptografada. As três migrações já foram aplicadas
-na VPS, com acesso limitado `nina_app` e consultas clínicas autenticadas.
+e integração Resend com fila criptografada. As quatro migrações foram aplicadas na
+VPS, com acesso limitado `nina_app`, consultas e gravações clínicas autenticadas.
 
 A interface nativa em `src/native/` oferece login, busca e paginação de tutores,
 animais, agenda, procedimentos e histórico de mensagens. O ponto de entrada e
 o bundle de produção usam somente a API própria e não carregam Supabase/Lovable.
 
-**A migração completa ainda não terminou.** A interface de consulta já está na VPS. Criação/edição clínica foi implementada
-e testada na etapa seguinte, com ativação coordenada do banco/API ainda pendente.
+**A migração completa ainda não terminou.** Em 03/11/2026 foram ativadas na VPS
+a criação e edição de tutores, animais e agendamentos, com procedimentos
+restritos a administradores. Há revisão, auditoria e proteção contra duplicação.
 Envio de mensagens, IA, WhatsApp, VetSoft, mídias, tempo real e gestão da
 equipe ainda precisam ser portados e verificados. O código antigo permanece no
 repositório como referência, fora do ponto de entrada da interface publicada;
@@ -72,5 +73,5 @@ O acompanhamento e os critérios de conclusão estão em
 [docs/migracao-postgresql-nativo.md](docs/migracao-postgresql-nativo.md).
 
 A etapa de gravação, suas permissões e a publicação coordenada estão em
-[edição nativa](docs/edicao-nativa.md). Não publicar essa etapa sobre um banco
-ainda com apenas três migrações.
+[edição nativa](docs/edicao-nativa.md). Essa etapa exige a quarta migração
+e os grants de gravação por coluna; ambos já estão aplicados na VPS.

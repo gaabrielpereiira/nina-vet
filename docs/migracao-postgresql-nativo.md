@@ -8,8 +8,8 @@ PostgreSQL comum na VPS, com backend próprio. Não instalar o template Supabase
 Atualização de 03/11/2026: as cinco contas e 125.174 registros foram importados
 na VPS. API e interface nativa de consulta estão publicadas nos dois domínios;
 o titular confirmou o login com a conta anterior. O bundle publicado usa a API
-própria, sem runtime Supabase/Lovable. Criação/edição clínica está implementada
-e testada, com ativação coordenada do banco/API ainda pendente. Veja
+própria, sem runtime Supabase/Lovable. Criação/edição clínica foi ativada na VPS,
+com quatro migrações, permissões por coluna e ensaio real com rollback. Veja
 [a edição nativa](edicao-nativa.md) e [a interface](frontend-nativo.md).
 
 As anotações abaixo registram etapas anteriores e decisões da migração. Para

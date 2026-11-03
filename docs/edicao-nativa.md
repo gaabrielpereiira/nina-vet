@@ -1,5 +1,9 @@
 # Criação e edição clínica na VPS
 
+Ativada na VPS em 03/11/2026. API e interface publicadas no commit `4f8c17d`,
+com a quarta migração e os grants por coluna. O ensaio com postgres.js passou
+com rollback completo antes de liberar os formulários.
+
 ## Comportamento
 
 A interface permite criar e editar tutores e animais, criar/editar/cancelar

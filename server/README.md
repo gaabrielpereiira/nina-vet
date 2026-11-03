@@ -1,7 +1,7 @@
 # Nina API — base de migração
 
 Esta pasta contém a primeira parte do backend próprio, sem dependências do
-Supabase ou do Lovable. **Ainda não substitui o sistema em produção.**
+Supabase ou do Lovable. **Ainda não substitui todas as funções do sistema anterior.**
 A interface nativa de consulta já está na VPS e usa esta API. O código legado
 permanece fora do ponto de entrada. Arquivos, tempo real e integrações ainda
 precisam ser portados; a migração completa continua em andamento.
@@ -10,7 +10,7 @@ precisam ser portados; a migração completa continua em andamento.
 
 - Consultas de contatos, animais, procedimentos, agenda e histórico de mensagens
   com sessão nativa, RLS e paginação. A etapa de escrita acrescenta permissões
-  por coluna, revisão e recibos de operações; sua ativação é coordenada.
+  por coluna, revisão e recibos de operações; ativada na VPS em 03/11/2026.
 - Migração 0003 e preparador privado da importação das seis tabelas; filas e
   credenciais de integração não são copiadas. Consulte
   [a aplicação coordenada](../docs/migracao-historico.md) antes de implantar.
