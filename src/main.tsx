@@ -1,10 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import './index.css';
+import NativeApp from './native/NativeApp';
+import { consumeRecoveryToken } from './native/api-client';
+import './native/native.css';
 
-const queryClient = new QueryClient();
+const recoveryToken = consumeRecoveryToken(window.location, path => window.history.replaceState(null, '', path));
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,8 +14,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <NativeApp initialRecoveryToken={recoveryToken} />
   </React.StrictMode>
 );

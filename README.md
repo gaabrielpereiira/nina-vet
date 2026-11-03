@@ -1,27 +1,31 @@
 # Nina Vet
 
-Plataforma da clínica Vet+ com interface React/Vite. A migração para a VPS com
-Dokploy está sendo preparada na branch `codex/postgres-backend`.
+Plataforma da Clínica Vet+ em migração para uma VPS com Dokploy. O trabalho está
+na branch `codex/postgres-backend`; a branch `main` permanece independente.
 
 ## Estado da migração
 
-Em 02/11/2026, a API base continua pronta na VPS e as cinco contas já estão
-importadas. A etapa de cadastros e histórico está preparada e ensaiada: 125.174
-registros em seis tabelas, com comparação de todas as colunas e 97 testes
-aprovados. A aplicação dos dados e da API atualizada depende da confirmação
-para disponibilizar esse histórico no novo servidor. Veja
-[o procedimento desta etapa](docs/migracao-historico.md).
+Em 02/11/2026, as cinco contas e 125.174 registros de cadastros e histórico foram
+importados na VPS. Veja [o procedimento desta etapa](docs/migracao-historico.md).
 
 A pasta `server/` contém a base da API própria em Node.js e PostgreSQL, sem
 dependências Supabase/Lovable: login, sessões revogáveis, recuperação de senha
-e integração Resend com fila criptografada. As duas migrações iniciais já foram
-aplicadas no banco novo da VPS e o acesso limitado `nina_app` foi preparado.
+e integração Resend com fila criptografada. As três migrações já foram aplicadas
+na VPS, com acesso limitado `nina_app` e consultas clínicas autenticadas.
 
-**A migração completa ainda não terminou.** A interface e as funções antigas
-continuam usando Supabase. Dados, mídias, regras de negócio, IA, WhatsApp,
-Vetsoft e tempo real ainda precisam ser portados e verificados antes de
-substituir o sistema em produção. Uma publicação da API base serve apenas
-para testar o container, a conexão com o banco e o domínio novo.
+A interface nativa em `src/native/` oferece login, busca e paginação de tutores,
+animais, agenda, procedimentos e histórico de mensagens. O ponto de entrada e
+o bundle de produção usam somente a API própria e não carregam Supabase/Lovable.
+
+**A migração completa ainda não terminou.** Esta interface permite consulta.
+Edição, envio de mensagens, IA, WhatsApp, VetSoft, mídias, tempo real e gestão da
+equipe ainda precisam ser portados e verificados. O código antigo permanece no
+repositório como referência, fora do ponto de entrada da interface publicada;
+suas dependências ainda não foram eliminadas do repositório.
+
+O envio de recuperação de senha depende de `EMAIL_ENABLED=true` na API. Durante
+a preparação ele permanece desativado; a interface informa a indisponibilidade.
+Não há cadastro público de usuários.
 
 ## Desenvolvimento
 
@@ -33,8 +37,9 @@ npm ci --prefix server
 npm run dev
 ```
 
-A interface atual ainda depende da configuração pública Supabase da origem.
-Não apontar essas variáveis para a API própria: os contratos são diferentes.
+A interface usa `VITE_API_URL`, origem pública sem segredo, com padrão
+`https://api.nina.sharkassessoria.tech`. Para testes locais, usar uma API local
+com banco descartável e dados sintéticos.
 As instruções do backend e de suas variáveis estão em [server/README.md](server/README.md).
 
 Chaves de IA, Resend, senhas de banco e a chave de criptografia pertencem
@@ -48,20 +53,19 @@ npm run typecheck
 npm run build
 ```
 
-Os 84 testes passaram com dados sintéticos e PostgreSQL embarcado. O build e
-o typecheck da interface continuam pendentes nesta etapa; as últimas tentativas
-não concluíram. O primeiro deploy da API na VPS foi validado em 23/10/2026:
-HTTPS, `/healthz` e `/readyz` responderam normalmente. Isso confirma a base
-do servidor e sua conexão com o banco, sem concluir a migração da clínica.
+Os 104 testes passaram com dados sintéticos, incluindo o contrato do cliente
+nativo. A interface foi também verificada no navegador com API local e dados
+sintéticos. O titular deve validar seu acesso real digitando a senha diretamente
+no site. A API publicada respondeu normalmente em HTTPS nos testes da VPS.
 
 O verificador também aceita o bcrypt de custo 10 encontrado nas contas antigas,
-mantendo scrypt para senhas novas. A importação dessas contas foi preparada e
-simulada localmente; ainda não foi aplicada na VPS.
+mantendo scrypt para senhas novas. As cinco contas foram importadas na VPS.
 
-Para testar exclusivamente a API no Dokploy, usar o contexto `.`, Dockerfile
+Para publicar a API no Dokploy, usar o contexto `.`, Dockerfile
 `server/Dockerfile`, stage `production` e porta `3000`. Manter o autodeploy
-desligado e `EMAIL_ENABLED=false` durante a preparação. O Dockerfile da raiz
-é da interface antiga e ainda não representa a migração concluída.
+desligado e `EMAIL_ENABLED=false` durante a preparação. A aplicação `nina-web`
+usa o Dockerfile da raiz, contexto `.`, stage `production` e porta `8080`.
+Ela não precisa de variáveis Supabase. Veja [a publicação da interface nativa](docs/frontend-nativo.md).
 
 O acompanhamento e os critérios de conclusão estão em
 [docs/migracao-postgresql-nativo.md](docs/migracao-postgresql-nativo.md).
