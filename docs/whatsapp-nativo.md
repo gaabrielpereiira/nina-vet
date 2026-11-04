@@ -1,16 +1,26 @@
 # WhatsApp na VPS — preparação do recebimento
 
-## Estado em 03/11/2026
+## Estado em 04/11/2026
 
 A chave restrita `Nina VPS` foi criada e salva pelo usuário no ambiente da
-`nina-api`. A API foi republicada a partir de `61d800c` e uma consulta real,
-somente de leitura, confirmou a conta WhatsApp conectada, o perfil esperado e
-a autenticação no Zernio. O agente não leu o valor da chave.
+`nina-api`. Em 03/11 uma consulta real, somente de leitura, confirmou a conta
+WhatsApp conectada, o perfil esperado e a autenticação no Zernio. O agente
+não leu o valor da chave.
 
-O recebedor desta branch é uma preparação **ainda não publicada nem ativada**.
-A produção continua em `codex/postgres-backend`; os autodeploys estão desligados.
+A preparação foi publicada em 04/11 na API, commit
+`ae8900fa47f9e2d4c4233d72dca11d85d5027b0c`, com o recebimento **desligado**.
+O banco continua com as quatro migrações anteriores e o endpoint retorna
+`503 WEBHOOK_DISABLED`. As branches `codex/postgres-backend` e
+`codex/zernio-receiver` contêm a preparação; os autodeploys estão desligados.
 Nenhuma assinatura de webhook foi alterada, nenhum envio foi feito pelo novo
 backend e nenhuma permissão da migração 0005 foi aplicada na VPS.
+
+Os 147 testes passaram. Na VPS, o teste de edição clínica passou com rollback
+integral dos dados fictícios e a criptografia HKDF/AES-GCM foi exercitada no
+Node 22 com dados sintéticos, incluindo rejeição de vínculo de linha adulterado.
+HTTPS, health/readiness, bloqueio anônimo, Origin e endpoint desligado foram
+conferidos depois da publicação. A recepção no PostgreSQL 17 ainda depende
+da aplicação autorizada da migração e dos grants, seguida do ensaio com rollback.
 
 O painel do provedor registra mensagens recebidas e enviadas em 03/11. O usuário
 confirmou atendimento pela equipe ou outro CRM. A assinatura `CRM Inbox` deve
@@ -79,18 +89,20 @@ evento não equivale a guardar os arquivos. Não desligar a origem nem assumir
 que a mídia foi migrada com base neste estágio. Ativar uma cópia passiva somente
 com prazo acompanhado e plano para processar/esvaziar a fila antes de lotar.
 
-## Publicação coordenada — pendente
+## Publicação coordenada
 
 1. Revisar o commit da branch `codex/zernio-receiver` e obter aprovação para as
    novas permissões de recepção. Preservar a configuração dos dois aplicativos
    e o commit de produção, com autodeploy desligado.
-2. Publicar primeiro apenas a API com `ZERNIO_WEBHOOK_ENABLED=false` (ou ausente).
+2. **Concluído em 04/11:** publicar primeiro apenas a API com
+   `ZERNIO_WEBHOOK_ENABLED=false` (ou ausente).
    O readiness aceita a migração 0005 ausente somente nesse modo; as quatro
    migrações atuais continuam obrigatórias e com checksum exato. Histórico
    desconhecido ou divergente falha. Assim a preparação pode ser publicada
    antes de criar a fila, sem interromper login/edição e sem ampliar permissões.
-3. Fazer backup completo validado e aplicar as migrações como dono, pelo runner
-   com checksum (não colar apenas o SQL sem registrar o histórico). Aplicar
+3. **Pendente de autorização:** fazer backup completo validado e aplicar a
+   migração como dono, pelo runner com checksum ou script equivalente com trava,
+   conferência do histórico e registro do checksum. Aplicar
    `server/sql/zernio-inbox-role.sql` separadamente. Repetir testes sintéticos
    e de privilégios no PostgreSQL 17 da VPS, com rollback dos dados de ensaio.
    Conferir `/readyz`, login, edição clínica e o recebedor recusando chamadas.
