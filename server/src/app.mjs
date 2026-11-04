@@ -97,7 +97,10 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
       if (request.method === 'GET' && path === '/readyz') {
         try {
           await assertRuntimeRole(db);
-          if (await checkSchema(db, migrations)) return respond({ status: 'ready' });
+          // Deploy intake disabled before granting its separate schema. The four
+          // existing migrations stay mandatory; unknown/mismatched history fails.
+          const optionalVersions = config.zernio?.enabled ? [] : ['0005_zernio_inbox.sql'];
+          if (await checkSchema(db, migrations, optionalVersions)) return respond({ status: 'ready' });
         } catch (error) {
           log({ event: 'readiness_failed', request_id: requestId, code: error.code ?? 'DATABASE_ERROR' });
         }

@@ -41,8 +41,9 @@ export async function migrate(db, migrations) {
   });
 }
 
-export async function checkSchema(db, migrations) {
+export async function checkSchema(db, migrations, optionalVersions = []) {
   const existing = await db.query('SELECT version, checksum FROM nina_meta.schema_migrations ORDER BY version');
-  return existing.length === migrations.length && existing.every((m, i) =>
-    m.version === migrations[i].version && m.checksum === migrations[i].checksum);
+  return existing.length <= migrations.length && existing.every((m, i) =>
+    m.version === migrations[i].version && m.checksum === migrations[i].checksum) &&
+    migrations.slice(existing.length).every(m => optionalVersions.includes(m.version));
 }

@@ -84,12 +84,17 @@ com prazo acompanhado e plano para processar/esvaziar a fila antes de lotar.
 1. Revisar o commit da branch `codex/zernio-receiver` e obter aprovação para as
    novas permissões de recepção. Preservar a configuração dos dois aplicativos
    e o commit de produção, com autodeploy desligado.
-2. Fazer backup completo validado e aplicar as migrações como dono, pelo runner
+2. Publicar primeiro apenas a API com `ZERNIO_WEBHOOK_ENABLED=false` (ou ausente).
+   O readiness aceita a migração 0005 ausente somente nesse modo; as quatro
+   migrações atuais continuam obrigatórias e com checksum exato. Histórico
+   desconhecido ou divergente falha. Assim a preparação pode ser publicada
+   antes de criar a fila, sem interromper login/edição e sem ampliar permissões.
+3. Fazer backup completo validado e aplicar as migrações como dono, pelo runner
    com checksum (não colar apenas o SQL sem registrar o histórico). Aplicar
    `server/sql/zernio-inbox-role.sql` separadamente. Repetir testes sintéticos
    e de privilégios no PostgreSQL 17 da VPS, com rollback dos dados de ensaio.
-3. Publicar apenas a API com `ZERNIO_WEBHOOK_ENABLED=false`. Conferir `/readyz`,
-   login, edição clínica e o recebedor recusando chamadas. Frontend não muda.
+   Conferir `/readyz`, login, edição clínica e o recebedor recusando chamadas.
+   Frontend não muda.
 4. O usuário cria um segredo aleatório de assinatura (mínimo 32 caracteres),
    guarda-o com segurança e configura `ZERNIO_WEBHOOK_SECRET` diretamente no
    Dokploy e no formulário do Zernio; nunca pelo chat/Git. Não reutilizar a
@@ -105,11 +110,12 @@ com prazo acompanhado e plano para processar/esvaziar a fila antes de lotar.
    de mídias e a sincronização do histórico recente têm de estar concluídos
    antes da virada definitiva e desativação de qualquer origem.
 
-Rollback: desabilitar/pausar somente a assinatura nova, desligar o flag e voltar
-à API anterior. A migração é aditiva; não apagar a fila ou desfazer o histórico
-de migrações. A versão anterior verificava quatro migrações e exige a estratégia
-de rollback ser testada antes de aplicar a quinta (seu `/readyz` rejeita histórico
-mais novo). Guardar o backup e preferir roll-forward com recepção desligada.
+Rollback funcional: desabilitar/pausar somente a assinatura nova e desligar o
+flag mantendo esta versão da API, que aceita quatro ou cinco migrações nesse
+modo. A migração é aditiva; não apagar a fila ou desfazer o histórico. Não voltar
+diretamente ao commit `61d800c` após aplicar a quinta: seu `/readyz` rejeita
+histórico mais novo. Guardar backup e imagem da versão compatível com recepção
+desligada. Essa é a base de retorno antes de habilitar qualquer callback.
 
 ## Verificação local
 

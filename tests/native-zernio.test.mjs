@@ -222,3 +222,30 @@ test('zernio: intake limits simultaneous database transactions to preserve staff
   } finally { release(); await Promise.all(pending); }
   assert.deepEqual(await receive(request()), { status: 'queued' }); assert.equal(calls, 3);
 });
+
+test('zernio: staged deployment stays ready on the existing four migrations only while intake is disabled', async () => {
+  const engine = new PGlite(); const stageDb = adapter(engine);
+  try {
+    await migrate(stageDb, migrations.slice(0, 4));
+    const grants = await readFile(new URL('../server/sql/runtime-role.sql', import.meta.url), 'utf8');
+    await stageDb.exec(grants.replace('ON DATABASE nina TO', 'ON DATABASE postgres TO'));
+    await stageDb.exec('SET ROLE nina_app');
+    const off = createApp({ db: stageDb, config: readConfig({ ...env, ZERNIO_WEBHOOK_ENABLED: 'false' }), migrations });
+    const on = createApp({ db: stageDb, config, migrations });
+    const readiness = () => request(null, { method: 'GET', path: '/readyz' });
+    assert.equal((await off(readiness())).status, 200);
+    assert.equal((await on(readiness())).status, 503);
+    assert.equal((await off(request())).status, 503);
+    await stageDb.exec('RESET ROLE');
+    await migrate(stageDb, migrations);
+    await stageDb.exec('SET ROLE nina_app');
+    assert.equal((await off(readiness())).status, 200);
+    assert.equal((await on(readiness())).status, 200);
+    await stageDb.exec("RESET ROLE; UPDATE nina_meta.schema_migrations SET checksum=repeat('0',64) WHERE version='0005_zernio_inbox.sql'; SET ROLE nina_app");
+    assert.equal((await off(readiness())).status, 503);
+    await stageDb.exec('RESET ROLE');
+    await stageDb.query('UPDATE nina_meta.schema_migrations SET checksum=$1 WHERE version=$2', [migrations[4].checksum, migrations[4].version]);
+    await stageDb.exec("INSERT INTO nina_meta.schema_migrations(version,checksum) VALUES('0006_unknown.sql',repeat('0',64)); SET ROLE nina_app");
+    assert.equal((await off(readiness())).status, 503);
+  } finally { await engine.close(); }
+});
