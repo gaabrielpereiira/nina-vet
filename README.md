@@ -1,7 +1,8 @@
 # Nina Vet
 
 Plataforma da Clínica Vet+ em migração para uma VPS com Dokploy. O trabalho está
-na branch `codex/postgres-backend`; a branch `main` permanece independente.
+em `codex/zernio-message-processing`, publicada na VPS; a preparação do histórico
+está em `codex/zernio-history-migration`. A branch `main` permanece independente.
 
 ## Estado da migração
 
@@ -10,7 +11,7 @@ importados na VPS. Veja [o procedimento desta etapa](docs/migracao-historico.md)
 
 A pasta `server/` contém a base da API própria em Node.js e PostgreSQL, sem
 dependências Supabase/Lovable: login, sessões revogáveis, recuperação de senha
-e integração Resend com fila criptografada. As quatro migrações foram aplicadas na
+e integração Resend com fila criptografada. As seis migrações foram aplicadas na
 VPS, com acesso limitado `nina_app`, consultas e gravações clínicas autenticadas.
 
 A interface nativa em `src/native/` oferece login, busca e paginação de tutores,
@@ -20,8 +21,12 @@ o bundle de produção usam somente a API própria e não carregam Supabase/Lova
 **A migração completa ainda não terminou.** Em 03/11/2026 foram ativadas na VPS
 a criação e edição de tutores, animais e agendamentos, com procedimentos
 restritos a administradores. Há revisão, auditoria e proteção contra duplicação.
-Envio de mensagens, IA, WhatsApp, VetSoft, mídias, tempo real e gestão da
-equipe ainda precisam ser portados e verificados. O código antigo permanece no
+O recebimento passivo do WhatsApp e os arquivos privados foram publicados e
+validados em 04/11. A mensagem e a imagem de teste chegaram ao histórico. Veja
+[a etapa publicada](docs/whatsapp-processamento.md) e
+[o levantamento do histórico anterior](docs/historico-whatsapp.md). Envio de
+mensagens, atendimento automático, VetSoft, histórico de mídias, tempo real e
+gestão da equipe ainda precisam ser portados e verificados. O código antigo permanece no
 repositório como referência, fora do ponto de entrada da interface publicada;
 suas dependências ainda não foram eliminadas do repositório.
 
