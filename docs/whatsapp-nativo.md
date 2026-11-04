@@ -1,8 +1,8 @@
 # WhatsApp na VPS — preparação do recebimento
 
 > Registro da etapa 0005. A preparação posterior de processamento e arquivos
-> está em [whatsapp-processamento.md](whatsapp-processamento.md), ainda sem
-> migração 0006 aplicada nem recebimento real ativado.
+> está em [whatsapp-processamento.md](whatsapp-processamento.md), com migração
+> 0006 e recebimento passivo publicados e verificados em 04/11/2026.
 
 ## Estado em 04/11/2026
 

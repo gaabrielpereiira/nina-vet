@@ -1,19 +1,35 @@
 # WhatsApp na VPS — processamento passivo e arquivos privados
 
-## Preparação em 04/11/2026
+## Estado confirmado em 04/11/2026
 
-Implementação na branch `codex/zernio-message-processing`. Esta preparação não
-aplica a migração 0006 nem liga o recebimento de produção. As autorizações
-anteriores criaram somente a fila 0005, com o recebimento desligado. A ampliação
-para processamento e acesso a arquivos deve ser aprovada antes da ativação.
+A etapa foi publicada com autorização explícita na VPS. API e frontend executam
+`2fb7cf86557dbe45225147ca35df9c0345f98c56`, da branch
+`codex/zernio-message-processing`, com autodeploy desligado. A migração 0006 e os
+grants foram aplicados em uma transação após backup completo, cuja leitura
+integral foi verificada sem restaurar dados. O banco agora tem seis migrações.
 
-O segredo de assinatura foi corrigido, salvo pelo usuário e validado na VPS:
-64 caracteres hexadecimais, conta/perfil corretos e criptografia disponível.
-O valor nunca foi registrado no código, logs ou documentação. A nova assinatura
-do Zernio continua como rascunho não submetido. As assinaturas antigas e o CRM
-precisam continuar funcionando durante esta etapa.
+O volume privado `/app/media` foi conferido com UID 1000 e modo 700. Uma prova
+sintética permaneceu após recriar o container; o marcador de inicialização foi
+criado somente depois dessa verificação. Recebimento, processamento e arquivos
+estão ligados. As cinco funções pertencem ao papel NOLOGIN, sem EXECUTE público;
+a conexão real `nina_app` não pode assumir esse papel nem ler ciphertext direto.
 
-## Comportamento preparado
+O usuário criou a assinatura **Nina VPS - Recebimento**, com os cinco eventos de
+mensagens e filtro da conta/perfil corretos. O segredo foi preenchido e submetido
+pelo usuário; o teste assinado do próprio Zernio retornou HTTP 200/sucesso. As
+assinaturas anteriores e o atendimento da equipe/CRM foram preservados.
+
+Uma mensagem e uma imagem de teste enviadas pelo usuário chegaram ao histórico.
+A imagem abriu no navegador autenticado pela API privada; tamanho e SHA-256 do
+arquivo salvo foram conferidos. No checkpoint das 19:01 UTC, havia 19 eventos
+processados, nenhum pendente/em processamento e nenhum para conferência. Nenhum
+envio de WhatsApp ou chamada de IA foi feito pelo novo backend.
+
+O histórico posterior ao backup de 22/10 ainda precisa ser sincronizado antes da
+virada definitiva. Respostas automáticas, transcrição, demais integrações e
+identidade visual permanecem em etapas posteriores.
+
+## Comportamento publicado
 
 O recebedor mantém a validação HMAC dos bytes originais, escopo assinado, fila
 criptografada e deduplicação por UUID do evento. O alias documentado `account.id`
@@ -92,7 +108,11 @@ A página de situação do WhatsApp é restrita a administradores.
   banco e raiz de criptografia no plano de backup protegido. Não afirmar que
   um backup só do PostgreSQL restaura os arquivos.
 
-## Publicação coordenada após aprovação
+## Registro do procedimento de primeira ativação
+
+**Procedimento já executado. Não repetir o SQL de ativação em produção:** ele
+exige exatamente as cinco migrações anteriores e ausência do papel novo. Para
+novas versões, manter migrações/checksums e revisar o rollback compatível.
 
 1. Preservar a configuração atual, commit e backup. Desligar os três flags na
    preparação: `ZERNIO_WEBHOOK_ENABLED=false`, `CHANNEL_PROCESSING_ENABLED=false`,
@@ -145,7 +165,10 @@ de ordem, concessões vencidas, tentativas esgotadas, erro/recuperação de míd
 SSRF/DNS/TLS, permissões e integridade de arquivos, sessões revogadas, CORS,
 HTTP real, HEAD e intervalos de bytes. A demonstração no navegador usa somente
 dados e bytes fictícios e não consulta provedores reais. TypeScript e build
-continuam necessários antes de publicar. Nenhuma dependência de produção nova.
+passaram antes da publicação (187 testes). Os ensaios com Node 22/PostgreSQL 17
+na VPS e rollback também passaram, incluindo dois anexos fictícios, leitura
+privada parcial, confirmações de leitura/entrega, concessões e edição clínica.
+Nenhuma dependência de produção nova.
 
 Referências primárias:
 [webhooks](https://docs.zernio.com/webhooks),
