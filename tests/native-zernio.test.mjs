@@ -50,7 +50,7 @@ before(async () => {
   }
 });
 beforeEach(async () => {
-  await db.exec('RESET ROLE; TRUNCATE nina_channels.zernio_inbox; SET ROLE nina_app');
+  await db.exec('RESET ROLE; TRUNCATE nina_channels.zernio_inbox CASCADE; SET ROLE nina_app');
   logs = []; app = createApp({ db, config, migrations, log: value => logs.push(value) });
 });
 after(async () => { await pg?.close(); await sqlClient?.end(); });
@@ -93,7 +93,7 @@ test('zernio: malformed envelope, wrong content type, encoding and oversized str
 });
 test('zernio: scope uses signed account and profile, rejecting missing, conflicting or foreign identities', async () => {
   for (const changes of [{ account: null }, { account: { ...event().account, accountId: 'c'.repeat(24) } },
-    { account: { ...event().account, id: 'c'.repeat(24) } }, { account: { ...event().account, profileId: undefined } },
+    { account: { ...event().account, id: 'c'.repeat(24) } }, { account: { ...event().account, profileId: undefined }, profiles: undefined },
     { account: { ...event().account, profileId: 'c'.repeat(24) } }, { profiles: [] },
     { profiles: [{ id: 'c'.repeat(24) }] }]) assert.equal((await app(request(event(changes)))).status, 403);
   assert.equal((await app(request(event({ message: { platform: 'instagram' } })))).status, 400);

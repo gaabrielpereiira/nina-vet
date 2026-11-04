@@ -103,3 +103,11 @@ test('native client: record writes carry operation/version in JSON and keep cook
   assert.deepEqual(JSON.parse(calls[0].options.body),{data:{name:'Edited'},operation_id:operation,version:1});
   assert.ok(!calls[0].url.includes(operation));
 });
+
+test('native client: private attachment links stay on the configured API and reject paths, URLs or query injection',async()=>{
+ const calls=[];const client=createNativeClient('https://api.example.com',async(url,options)=>{calls.push({url,options});return Response.json({receiving_enabled:false,processing_enabled:false,media_enabled:false,status:null});});
+ const id='ABCDEFAB-1234-4234-8234-ABCDEFABCDEF';
+ assert.equal(client.fileUrl(id),'https://api.example.com/v1/files/'+id.toLowerCase());assert.equal(client.fileUrl(id,true),'https://api.example.com/v1/files/'+id.toLowerCase()+'?download=1');
+ for(const bad of ['https://attacker.invalid/image','../private','x?token=private','11111111-1111-1111-8111-111111111111'])assert.throws(()=>client.fileUrl(bad));
+ const controller=new AbortController();await client.channelStatus(controller.signal);assert.equal(calls[0].url,'https://api.example.com/v1/channels/status');assert.equal(calls[0].options.credentials,'include');assert.equal(calls[0].options.signal,controller.signal);
+});

@@ -1,5 +1,9 @@
 # WhatsApp na VPS — preparação do recebimento
 
+> Registro da etapa 0005. A preparação posterior de processamento e arquivos
+> está em [whatsapp-processamento.md](whatsapp-processamento.md), ainda sem
+> migração 0006 aplicada nem recebimento real ativado.
+
 ## Estado em 04/11/2026
 
 A chave restrita `Nina VPS` foi criada e salva pelo usuário no ambiente da
@@ -29,7 +33,8 @@ ao provedor ocorreu. A API permanece sem SELECT no ciphertext e sem DELETE.
 Foi criado um backup completo antes da migração, com permissões 600 e leitura
 integral do arquivo verificada com pg_restore, sem executar SQL de restauração.
 Conta/perfil e flag desligado foram salvos no ambiente da API. O campo
-`ZERNIO_WEBHOOK_SECRET` está vazio e aguarda entrada e salvamento pelo usuário.
+`ZERNIO_WEBHOOK_SECRET` foi corrigido e salvo pelo usuário; sua validade foi
+conferida sem exibir o valor.
 O segredo novo foi gerado em arquivo local protegido, fora do repositório e sem
 exibir seu valor. Não trocar a API key nem a raiz de criptografia por esse segredo.
 

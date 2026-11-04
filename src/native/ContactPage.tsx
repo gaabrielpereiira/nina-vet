@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, PawPrint } from 'lucide-react';
+import { MessageHistory } from './MessageHistory';
 import { client } from './client';
 import { ContactEditor, AnimalEditor, AppointmentEditor } from './Editors';
 import type { Animal, Appointment, Contact, Message, Page } from './api-client';
@@ -8,9 +9,7 @@ import { AppointmentRows } from './Lists';
 import { dateLabel, ErrorNotice, Loading } from './ui';
 
 interface Details { id: string; contact: Contact; animals: Page<Animal>; appointments: Page<Appointment>; messages: Page<Message> }
-type Section = 'animals' | 'appointments' | 'messages';
-const authors: Record<string, string> = { user: 'Tutor', human: 'Equipe', nina: 'Nina' };
-const media: Record<string, string> = { audio: 'Mensagem de áudio', image: 'Imagem', video: 'Vídeo', document: 'Documento' };
+type Section = 'animals' | 'appointments';
 
 export function ContactPage() {
   const { id = '' } = useParams();
@@ -43,8 +42,7 @@ export function ContactPage() {
     if (!current || offset === null || offset === undefined || !signal || pending) return;
     setPending(section); setMoreError(null);
     try {
-      const page = section === 'animals' ? await client.animals(id, offset, signal) : section === 'appointments' ?
-        await client.contactAppointments(id, offset, signal) : await client.contactMessages(id, offset, signal);
+      const page = section === 'animals' ? await client.animals(id, offset, signal) : await client.contactAppointments(id, offset, signal);
       if (!signal.aborted) setDetails(previous => {
         if (!previous || previous.id !== id) return previous;
         const existing = previous[section].data;
@@ -66,7 +64,7 @@ export function ContactPage() {
       {editingAnimal !== undefined && <AnimalEditor animal={editingAnimal ?? undefined} contactId={id} close={()=>setEditingAnimal(undefined)} saved={()=>saved("Animal salvo.")} />}
       {editingAppointment !== null && <AppointmentEditor appointmentId={editingAppointment} close={()=>setEditingAppointment(null)} saved={()=>saved("Agendamento salvo.")} />}
       <header className="contact-header"><div className="avatar">{(current.contact.name || current.contact.call_name || '?').slice(0, 1).toUpperCase()}</div>
-        <div><p className="eyebrow">Cadastro do tutor</p><h1>{current.contact.name || current.contact.call_name || 'Sem nome'}</h1><p className="muted">{current.contact.phone_number}{current.contact.email ? ` · ${current.contact.email}` : ''}</p></div></header>
+        <div><p className="eyebrow">Cadastro do tutor</p><h1>{current.contact.name || current.contact.call_name || 'Sem nome'}</h1><p className="muted">{current.contact.phone_number || 'Telefone não informado'}{current.contact.email ? ` · ${current.contact.email}` : ''}</p></div></header>
       <div className="detail-grid"><aside className="panel profile"><h2>Informações</h2><dl><dt>Nome de preferência</dt><dd>{current.contact.call_name || '—'}</dd><dt>Primeiro contato</dt><dd>{dateLabel(current.contact.first_contact_date)}</dd><dt>Última atividade</dt><dd>{dateLabel(current.contact.last_activity)}</dd></dl>
         {!!current.contact.tags?.length && <div className="tags">{current.contact.tags.map(tag => <span className="badge" key={tag}>{tag}</span>)}</div>}
         <h3>Observações</h3><p className="preserve muted">{current.contact.notes || 'Nenhuma observação cadastrada.'}</p></aside>
@@ -76,11 +74,7 @@ export function ContactPage() {
             <dl><dt>Sexo</dt><dd>{animal.sex || '—'}</dd><dt>Nascimento</dt><dd>{dateLabel(animal.birth_date)}</dd></dl>
             {animal.notes && <p className="preserve animal-notes">{animal.notes}</p>}<button className="button secondary" aria-label={"Editar animal "+animal.name} onClick={()=>setEditingAnimal(animal)}>Editar</button></article>)}</div>}{continuation('animals')}</section>
           <section className="panel detail-section"><h2>Agendamentos</h2>{current.appointments.data.length ? <AppointmentRows rows={current.appointments.data} edit={setEditingAppointment} /> : <p className="muted">Nenhum agendamento registrado para este tutor.</p>}{continuation('appointments')}</section>
-          <section className="panel detail-section"><h2>Histórico de conversas</h2><p className="muted">Mensagens mais recentes primeiro.</p>
-            {!current.messages.data.length ? <p className="muted">Nenhuma mensagem registrada.</p> : <ol className="message-list">{current.messages.data.map(message => <li className={'message ' + (message.from_type === 'user' ? 'from-tutor' : '')} key={message.id}>
-              <header><strong>{authors[message.from_type] || 'Mensagem'}</strong><time dateTime={message.sent_at}>{dateLabel(message.sent_at, true)}</time></header>
-              <p className="preserve">{message.content || media[message.type] || 'Mensagem sem texto'}</p></li>)}</ol>}{continuation('messages')}
-          </section></div></div>
+          <MessageHistory key={id+':'+revision} contactId={id} initial={current.messages} /></div></div>
     </>}
   </>;
 }

@@ -51,7 +51,7 @@ export function ContactEditor({ contact, close, saved }: { contact?: Contact; cl
     const result = await save(contact ? 'contacts/'+contact.id : 'contacts',data,operation,contact?.revision,original);
     saved(result?.data.id ?? contact?.id);
   }}><Field label="Nome do tutor" name="name" initial={contact?.name} max={240} required /><Field label="Nome de preferência" name="call_name" initial={contact?.call_name} />
-    <Field label="Telefone com DDI e DDD" name="phone_number" initial={contact?.phone_number} type="tel" required /><Field label="E-mail" name="email" initial={contact?.email} type="email" max={320} />
+    <Field label="Telefone com DDI e DDD" name="phone_number" initial={contact?.phone_number} type="tel" required={!contact || Boolean(contact.phone_number)} /><Field label="E-mail" name="email" initial={contact?.email} type="email" max={320} />
     <Field label="Etiquetas separadas por vírgula" name="tags" initial={contact?.tags?.join(', ')} max={1200} /><Notes initial={contact?.notes} />
   </Editor>;
 }
@@ -65,7 +65,7 @@ export function AnimalEditor({ animal, contactId, close, saved }: { animal?: Ani
   </Editor>;
 }
 
-type Choice = { id: string; name: string | null; call_name?: string | null; phone_number?: string; is_active?: boolean };
+type Choice = { id: string; name: string | null; call_name?: string | null; phone_number?: string | null; is_active?: boolean };
 const choiceLabel = (row: Choice) => (row.name || row.call_name || 'Sem nome') + (row.phone_number ? ' · '+row.phone_number : '');
 function Reference({ kind, label, value, change, parent, required = false }: { kind: 'contacts' | 'animals' | 'procedures'; label: string; value: string; change: (id: string) => void; parent?: string; required?: boolean }) {
   const [search,setSearch] = useState(''); const query = useDebounced(search); const id = useId();

@@ -48,8 +48,8 @@ beforeEach(async () => {
     VALUES ($1,'Retorno','2026-10-22','09:30',$2,$3,$4)`, [randomUUID(), first, animalId, procedureId]);
   await db.query(`INSERT INTO nina_clinic.conversations (id,contact_id,last_message_at)
     VALUES ($1,$2,'2026-10-22'), ($3,$2,'2026-10-20')`, [conversationId, first, oldConversationId]);
-  await db.query(`INSERT INTO nina_clinic.messages (id,conversation_id,from_type,content,created_at)
-    VALUES ($1,$2,'user','Recente','2026-10-22'), ($3,$4,'human','Anterior','2026-10-20')`,
+  await db.query(`INSERT INTO nina_clinic.messages (id,conversation_id,from_type,content,sent_at,created_at)
+    VALUES ($1,$2,'user','Recente','2026-10-22','2026-10-20'), ($3,$4,'human','Anterior','2026-10-20','2026-10-22')`,
   [randomUUID(), conversationId, randomUUID(), oldConversationId]);
   await db.exec('SET ROLE nina_app');
 });

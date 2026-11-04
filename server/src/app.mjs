@@ -8,6 +8,7 @@ import { createClinic } from './clinic.mjs';
 import { createClinicWriter } from './clinic-writes.mjs';
 import { createAiTests } from './ai-tests.mjs';
 import { createZernioWebhook } from './zernio-webhook.mjs';
+import { createChannelFiles } from './channel-files.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -39,13 +40,14 @@ async function jsonBody(request) {
   }
 }
 
-export function createApp({ db, config, migrations, log = () => {}, aiFetch = fetch }) {
+export function createApp({ db, config, migrations, log = () => {}, aiFetch = fetch, mediaReady = async()=>true }) {
   const auth = createAuth(db, config);
   const recovery = createPasswordRecovery(db, config);
-  const clinic = createClinic(db, auth);
+  const clinic = createClinic(db, auth, {mediaEnabled:config.media?.enabled===true});
   const writeClinic = createClinicWriter(db, auth);
   const aiTests = createAiTests(db, auth, config, aiFetch, log);
   const zernioWebhook = createZernioWebhook(db, config.zernio, log);
+  const channelFiles = createChannelFiles(db,auth,config);
   return async function handle(request) {
     const requestId = randomUUID();
     const headers = new Headers({
@@ -63,6 +65,8 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
     const respond = (body, status = 200) => new Response(body === null ? null : JSON.stringify(body), { status, headers });
 
     try {
+      const path = new URL(request.url).pathname;
+      const fileRequest = path.startsWith('/v1/files/');
       if (origin && !allowedOrigin) throw new ApiError(403, 'ORIGIN_DENIED', 'Origem não permitida.');
       if (allowedOrigin) {
         headers.set('access-control-allow-origin', origin);
@@ -74,18 +78,18 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
         const method = request.headers.get('access-control-request-method');
         const requestedHeaders = (request.headers.get('access-control-request-headers') ?? '')
           .split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
-        if (!['GET', 'POST'].includes(method) || requestedHeaders.some(value => value !== 'content-type')) {
+        if (!['GET', 'POST', ...(fileRequest?['HEAD']:[])].includes(method) ||
+            requestedHeaders.some(value => value !== 'content-type' && !(fileRequest&&value==='range'))) {
           throw new ApiError(403, 'PREFLIGHT_DENIED', 'Requisição não permitida.');
         }
-        headers.set('access-control-allow-methods', 'GET, POST, OPTIONS');
-        headers.set('access-control-allow-headers', 'Content-Type');
+        headers.set('access-control-allow-methods', fileRequest?'GET, HEAD, OPTIONS':'GET, POST, OPTIONS');
+        headers.set('access-control-allow-headers', fileRequest?'Content-Type, Range':'Content-Type');
         return respond(null, 204);
       }
-      if (!['GET', 'POST'].includes(request.method)) {
+      if (!['GET', 'POST', ...(fileRequest?['HEAD']:[])].includes(request.method)) {
         headers.set('allow', 'GET, POST, OPTIONS');
         throw new ApiError(405, 'METHOD_NOT_ALLOWED', 'Método não permitido.');
       }
-      const path = new URL(request.url).pathname;
       // Only this exact server-to-server route uses HMAC instead of browser CSRF validation.
       const webhook = request.method === 'POST' && path === '/v1/webhooks/zernio';
       // SameSite alone does not protect against other subdomains of the same site.
@@ -99,12 +103,40 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
           await assertRuntimeRole(db);
           // Deploy intake disabled before granting its separate schema. The four
           // existing migrations stay mandatory; unknown/mismatched history fails.
-          const optionalVersions = config.zernio?.enabled ? [] : ['0005_zernio_inbox.sql'];
-          if (await checkSchema(db, migrations, optionalVersions)) return respond({ status: 'ready' });
+          const channelsEnabled=config.zernio?.enabled||config.channelProcessing?.enabled||config.media?.enabled;
+          const optionalVersions = channelsEnabled ? [] : ['0005_zernio_inbox.sql','0006_channel_processing.sql'];
+          if (await checkSchema(db, migrations, optionalVersions)) {
+            if(config.media?.enabled){
+              await mediaReady();
+              const [access]=await db.query("SELECT has_column_privilege(current_user,'nina_channels.media_files','mime','SELECT') AS allowed");
+              if(!access.allowed)return respond({status:'not_ready'},503);
+            }
+            if(config.channelProcessing?.enabled){
+              const [status]=await db.query('SELECT nina_channels.runtime_status($1,$2) AS status',[config.zernio.accountId,config.zernio.profileId]);
+              if(!status.status?.scope_matches)return respond({status:'not_ready'},503);
+            }
+            return respond({ status: 'ready' });
+          }
         } catch (error) {
           log({ event: 'readiness_failed', request_id: requestId, code: error.code ?? 'DATABASE_ERROR' });
         }
         return respond({ status: 'not_ready' }, 503);
+      }
+      if(fileRequest&&['GET','HEAD'].includes(request.method)){
+        const response=await channelFiles(request);
+        for(const [key,value] of headers)if(key!=='content-type')response.headers.set(key,value);
+        response.headers.set('access-control-expose-headers','X-Request-Id, Content-Length, Content-Range, Content-Disposition, Accept-Ranges');
+        return response;
+      }
+      if(request.method==='GET'&&path==='/v1/channels/status'){
+        const {user}=await auth.authenticate(request);
+        if(!user.roles.includes('admin'))throw new ApiError(403,'FORBIDDEN','Acesso restrito à administração.');
+        let status=null;
+        if(config.channelProcessing?.enabled){
+          [status]=await db.query('SELECT nina_channels.runtime_status($1,$2) AS data',[config.zernio.accountId,config.zernio.profileId]);
+          status=status?.data??null;
+        }
+        return respond({receiving_enabled:config.zernio?.enabled===true,processing_enabled:config.channelProcessing?.enabled===true,media_enabled:config.media?.enabled===true,status});
       }
       if (request.method === 'POST' && path === '/v1/auth/login') {
         const result = await auth.login(await jsonBody(request));

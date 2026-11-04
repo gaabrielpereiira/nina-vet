@@ -4,6 +4,8 @@ import { readMigrations } from './migrations.mjs';
 import { createApp } from './app.mjs';
 import { createHttpServer } from './http.mjs';
 import { createMailWorker } from './mail-worker.mjs';
+import { createChannelWorker } from './channel-worker.mjs';
+import { createMediaArchive } from './channel-media.mjs';
 
 let db;
 try {
@@ -13,16 +15,21 @@ try {
   const migrations = await readMigrations();
   const log = entry => console.log(JSON.stringify(entry));
   const emailWorker = createMailWorker({ db, config, log });
-  const server = createHttpServer(createApp({ db, config, migrations, log }), config);
+  const archive=config.media.enabled?createMediaArchive({...config.media,accountId:config.zernio.accountId,apiKey:config.zernio.apiKey}):null;
+  if(archive)await archive.prepare();
+  const channelWorker=createChannelWorker({db,config,archive,log});
+  const server = createHttpServer(createApp({ db, config, migrations, log,mediaReady:()=>archive?.prepare() }), config);
   server.on('error', async error => {
     console.error(JSON.stringify({ event: 'server_failed', code: error.code ?? 'SERVER_ERROR' }));
     await emailWorker.stop();
+    await channelWorker.stop();
     await db.close();
     process.exitCode = 1;
   });
   server.listen(config.port, '0.0.0.0', () => {
     log({ event: 'api_listening', port: config.port });
     emailWorker.start();
+    channelWorker.start();
   });
   let stopping = false;
   const stop = () => {
@@ -33,6 +40,7 @@ try {
     server.close(async () => {
       clearTimeout(timeout);
       await emailWorker.stop();
+      await channelWorker.stop();
       await db.close();
     });
   };

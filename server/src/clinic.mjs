@@ -38,7 +38,7 @@ function page(rows, { limit, offset }) {
   return { data: rows.slice(0, limit), next_offset: more ? offset + limit : null };
 }
 
-export function createClinic(db, auth) {
+export function createClinic(db, auth, options={}) {
   return async function read(request) {
     const url = new URL(request.url);
     const suffix = url.pathname.slice('/v1/clinic/'.length);
@@ -95,10 +95,15 @@ export function createClinic(db, auth) {
         }
         if (match[2] === 'messages') {
           const f = filters(url, ['limit', 'offset']);
+          const attachments=options.mediaEnabled ? `,coalesce((SELECT jsonb_agg(jsonb_build_object(
+            'id',mf.file_id,'position',mf.position,'type',mf.type,'is_sticker',mf.is_sticker,'voice',mf.voice,
+            'mime',f.mime,'bytes',f.byte_count,'filename',f.display_name) ORDER BY mf.position)
+            FROM nina_channels.message_files mf JOIN nina_channels.media_files f ON f.id=mf.file_id
+            WHERE mf.message_id=m.id),'[]'::jsonb) AS attachments` : '';
           return page(await tx.query(`SELECT m.id, m.conversation_id, m.type, m.from_type,
-              m.content, m.status, m.sent_at, m.created_at
+              m.content, m.status, m.sent_at, m.created_at ${attachments}
             FROM nina_clinic.messages m JOIN nina_clinic.conversations c ON c.id = m.conversation_id
-            WHERE c.contact_id = $1 ORDER BY m.created_at DESC, m.id LIMIT $2 OFFSET $3`,
+            WHERE c.contact_id = $1 ORDER BY m.sent_at DESC, m.id LIMIT $2 OFFSET $3`,
           [contactId, f.limit + 1, f.offset]), f);
         }
       }

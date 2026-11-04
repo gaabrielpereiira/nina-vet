@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 
 export function createHttpServer(handle, config) {
   const server = createServer({ maxHeaderSize: 16384 }, async (req, res) => {
@@ -16,7 +17,8 @@ export function createHttpServer(handle, config) {
       const response = await handle(request);
       if (res.destroyed) return;
       res.writeHead(response.status, Object.fromEntries(response.headers));
-      res.end(Buffer.from(await response.arrayBuffer()));
+      if(response.body)await pipeline(Readable.fromWeb(response.body),res);
+      else res.end();
     } catch {
       if (!res.headersSent && !res.destroyed) {
         res.writeHead(400, { 'content-type': 'application/json', 'cache-control': 'no-store' });

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
-import { CalendarDays, ClipboardList, LogOut, Sparkles, Users } from 'lucide-react';
+import { CalendarDays, ClipboardList, LogOut, MessageCircle, Sparkles, Users } from 'lucide-react';
 import { NativeAuthProvider, useNativeAuth } from './NativeAuth';
 import { LoginPage, RecoveryPage, ResetPage } from './AuthPages';
 import { AgendaPage, ContactsPage, ProceduresPage } from './Lists';
 import { ContactPage } from './ContactPage';
+import { WhatsAppPage } from './WhatsAppPage';
 import { AiTestsPage } from './AiTestsPage';
 import { Brand, ErrorNotice, Loading } from './ui';
 
@@ -17,6 +18,7 @@ function Workspace() {
       <NavLink to="/contatos"><Users size={19} aria-hidden="true" /> Cadastros</NavLink>
       <NavLink to="/agenda"><CalendarDays size={19} aria-hidden="true" /> Agenda</NavLink>
       <NavLink to="/procedimentos"><ClipboardList size={19} aria-hidden="true" /> Procedimentos</NavLink>
+      {auth.session?.user.roles.includes('admin') && <NavLink to="/nina/whatsapp"><MessageCircle size={19} aria-hidden="true" /> WhatsApp</NavLink>}
       {auth.session?.user.roles.includes('admin') && <NavLink to="/nina/testes"><Sparkles size={19} aria-hidden="true" /> Testes da Nina</NavLink>}
     </nav><div className="sidebar-footer"><span className="status-dot" /> Clínica Vet+</div></aside>
     <div className="workspace-main"><header className="topbar"><span>Bom cuidado começa com uma boa conversa.</span><div className="account"><div><strong>{auth.session?.user.full_name || 'Equipe Vet+'}</strong><small>{auth.session?.user.email}</small></div>
@@ -48,6 +50,7 @@ export default function NativeApp({ initialRecoveryToken = '' }: { initialRecove
       <Route path="/contatos/:id" element={<ContactPage />} />
       <Route path="/agenda" element={<AgendaPage />} />
       <Route path="/procedimentos" element={<ProceduresPage />} />
+      <Route path="/nina/whatsapp" element={<WhatsAppPage />} />
       <Route path="/nina/testes" element={<AiTestsPage />} />
       <Route path="/contacts" element={<Navigate to="/contatos" replace />} />
       <Route path="/scheduling" element={<Navigate to="/agenda" replace />} />

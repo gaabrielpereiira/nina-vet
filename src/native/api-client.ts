@@ -4,7 +4,7 @@ export interface Page<T> { data: T[]; next_offset: number | null }
 export interface AiTestCase { id: string; title: string; message: string; expectation: string }
 export interface AiTestResult { case_id: string; reply: string; model: string; elapsed_ms: number }
 export interface Contact {
-  revision: number; id: string; name: string | null; call_name: string | null; phone_number: string;
+  revision: number; id: string; name: string | null; call_name: string | null; phone_number: string | null;
   email: string | null; tags: string[] | null; notes: string | null;
   is_blocked: boolean; first_contact_date: string; last_activity: string;
 }
@@ -13,8 +13,10 @@ export interface Animal { revision: number; contact_id: string; id: string; name
 export interface Appointment { revision: number; contact_id: string | null; animal_id: string | null; procedure_id: string | null; type: string; id: string; title: string; description: string | null; date: string;
   time: string; status: string | null; contact_name: string | null; animal_name: string | null;
   procedure_name: string | null; duration: number }
+export interface MediaAttachment { id: string; position: number; type: string; is_sticker: boolean; voice: boolean; mime: string; bytes: number; filename: string | null }
+export interface ChannelStatus { receiving_enabled: boolean; processing_enabled: boolean; media_enabled: boolean; status: null | { scope_matches: boolean; pending: number; processing: number; needs_review: number; processed: number; last_processed_at: string | null } }
 export interface Message { id: string; conversation_id: string; type: string; from_type: string;
-  content: string | null; status: string; sent_at: string; created_at: string }
+  content: string | null; status: string; sent_at: string; created_at: string; attachments?: MediaAttachment[] }
 export interface Procedure { revision: number; id: string; name: string; description: string | null; category: string | null;
   requirements: string | null; price_type: string; price: number | string | null;
   price_min: number | string | null; price_max: number | string | null;
@@ -95,6 +97,11 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     return page;
   }
   return {
+    fileUrl(id: string, download = false) {
+      if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id)) throw new ClientError(400, 'INVALID_QUERY');
+      return url.origin + '/v1/files/' + id.toLowerCase() + (download ? '?download=1' : '');
+    },
+    channelStatus: (signal?: AbortSignal) => request<ChannelStatus>('/v1/channels/status', { signal, protected: true }),
     onSessionExpired(handler?: () => void) { expired = handler; },
     async session(signal?: AbortSignal): Promise<NativeSession | null> {
       try { return await request<NativeSession>('/v1/auth/session', { signal }); }

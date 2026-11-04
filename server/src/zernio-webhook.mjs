@@ -1,6 +1,7 @@
 import { createHash, createHmac, createCipheriv, createDecipheriv, randomBytes, randomUUID,
   timingSafeEqual } from 'node:crypto';
 import { ApiError } from './errors.mjs';
+import { matchesZernioScope } from './zernio-scope.mjs';
 
 export const MAX_WEBHOOK_BYTES = 64 * 1024;
 export const MAX_INBOX_EVENTS = 5000;
@@ -77,11 +78,7 @@ function envelope(raw) {
 
 function assertScope(payload, config) {
   const account = payload.account;
-  if (!object(account) || account.accountId !== config.accountId ||
-      (account.id !== undefined && account.id !== config.accountId) ||
-      account.profileId !== config.profileId ||
-      (payload.profiles !== undefined && (!Array.isArray(payload.profiles) ||
-        payload.profiles.length !== 1 || payload.profiles[0]?.id !== config.profileId))) {
+  if (!matchesZernioScope(payload, config)) {
     throw new ApiError(403, 'WEBHOOK_SCOPE_DENIED', 'Conta não permitida.');
   }
   // Receipt-only stage: preserve the signed payload; a later worker validates each message shape.
@@ -127,7 +124,7 @@ export function createZernioWebhook(db, config, log = () => {}) {
           if (existing.payload_sha256 !== digest) throw new ApiError(409, 'WEBHOOK_EVENT_CONFLICT', 'Evento conflitante.');
           return { status: 'duplicate' };
         }
-        const [size] = await tx.query('SELECT count(account_id)::integer AS total FROM nina_channels.zernio_inbox WHERE account_id=$1', [config.accountId]);
+        const [size] = await tx.query("SELECT count(account_id)::integer AS total FROM nina_channels.zernio_inbox WHERE account_id=$1 AND status<>'processed'", [config.accountId]);
         if (size.total >= MAX_INBOX_EVENTS) throw unavailable();
         await tx.query(`INSERT INTO nina_channels.zernio_inbox
           (id,account_id,event_id,event_type,occurred_at,payload_sha256,payload_encrypted)
