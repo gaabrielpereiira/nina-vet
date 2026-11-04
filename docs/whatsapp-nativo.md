@@ -9,18 +9,29 @@ não leu o valor da chave.
 
 A preparação foi publicada em 04/11 na API, commit
 `ae8900fa47f9e2d4c4233d72dca11d85d5027b0c`, com o recebimento **desligado**.
-O banco continua com as quatro migrações anteriores e o endpoint retorna
-`503 WEBHOOK_DISABLED`. As branches `codex/postgres-backend` e
+Após autorização explícita do usuário em 04/11, a migração 0005 e os grants
+limitados foram aplicados numa única transação no PostgreSQL 17.11. O endpoint
+continua retornando `503 WEBHOOK_DISABLED`. As branches `codex/postgres-backend` e
 `codex/zernio-receiver` contêm a preparação; os autodeploys estão desligados.
-Nenhuma assinatura de webhook foi alterada, nenhum envio foi feito pelo novo
-backend e nenhuma permissão da migração 0005 foi aplicada na VPS.
+Nenhuma assinatura de webhook foi alterada e nenhum envio foi feito pelo novo
+backend. O novo formulário do Zernio está preparado, mas não foi submetido.
 
 Os 147 testes passaram. Na VPS, o teste de edição clínica passou com rollback
 integral dos dados fictícios e a criptografia HKDF/AES-GCM foi exercitada no
 Node 22 com dados sintéticos, incluindo rejeição de vínculo de linha adulterado.
 HTTPS, health/readiness, bloqueio anônimo, Origin e endpoint desligado foram
-conferidos depois da publicação. A recepção no PostgreSQL 17 ainda depende
-da aplicação autorizada da migração e dos grants, seguida do ensaio com rollback.
+conferidos depois da publicação. Depois da migração, o ensaio real da recepção
+passou no PostgreSQL 17: assinatura, gravação sintética, deduplicação, conflito
+de evento e trava verificada por uma segunda conexão. Todas as gravações do
+ensaio foram revertidas e os contextos da conexão foram limpos; nenhuma chamada
+ao provedor ocorreu. A API permanece sem SELECT no ciphertext e sem DELETE.
+
+Foi criado um backup completo antes da migração, com permissões 600 e leitura
+integral do arquivo verificada com pg_restore, sem executar SQL de restauração.
+Conta/perfil e flag desligado foram salvos no ambiente da API. O campo
+`ZERNIO_WEBHOOK_SECRET` está vazio e aguarda entrada e salvamento pelo usuário.
+O segredo novo foi gerado em arquivo local protegido, fora do repositório e sem
+exibir seu valor. Não trocar a API key nem a raiz de criptografia por esse segredo.
 
 O painel do provedor registra mensagens recebidas e enviadas em 03/11. O usuário
 confirmou atendimento pela equipe ou outro CRM. A assinatura `CRM Inbox` deve
@@ -100,7 +111,7 @@ com prazo acompanhado e plano para processar/esvaziar a fila antes de lotar.
    migrações atuais continuam obrigatórias e com checksum exato. Histórico
    desconhecido ou divergente falha. Assim a preparação pode ser publicada
    antes de criar a fila, sem interromper login/edição e sem ampliar permissões.
-3. **Pendente de autorização:** fazer backup completo validado e aplicar a
+3. **Concluído com autorização em 04/11:** fazer backup completo validado e aplicar a
    migração como dono, pelo runner com checksum ou script equivalente com trava,
    conferência do histórico e registro do checksum. Aplicar
    `server/sql/zernio-inbox-role.sql` separadamente. Repetir testes sintéticos
@@ -117,6 +128,10 @@ com prazo acompanhado e plano para processar/esvaziar a fila antes de lotar.
    `https://api.nina.sharkassessoria.tech/v1/webhooks/zernio`. Preservar CRM e
    assinaturas anteriores. Começar pelo teste sintético do próprio provedor;
    não habilitar IA ou envios como parte desta publicação.
+   O formulário atual do Zernio não oferece opção de criar a assinatura inativa:
+   preencher o rascunho é seguro, mas não clicar em Create Webhook enquanto
+   a API não estiver pronta e a recepção passiva não tiver sido autorizada.
+   A entrada e a submissão de novas credenciais devem ser feitas pelo usuário.
 6. Só então verificar um evento de ensaio autorizado, duplicação, criptografia,
    contagem e latência. Acompanhar ocupação e falhas. O processamento, o arquivo
    de mídias e a sincronização do histórico recente têm de estar concluídos
@@ -137,8 +152,8 @@ repetições entre instâncias, conflito de ID, criptografia/AAD/adulteração, 
 permissões por coluna, falha de persistência/trava, pressão e fila cheia. As
 demais rotas continuam na suíte de regressão. A implementação não acrescenta
 dependências de produção. O banco local é PGlite; a concorrência entre conexões
-e o ambiente PostgreSQL 17 completo precisam da conferência da VPS antes da
-ativação. O PostgreSQL local instalado não iniciou por restrição do ambiente.
+e o ambiente PostgreSQL 17 completo foram depois conferidos pelo ensaio da VPS
+descrito acima. O PostgreSQL local instalado não iniciou por restrição do ambiente.
 
 Referências primárias consultadas em 03/11/2026:
 [assinatura, deduplicação, escopo e retries](https://docs.zernio.com/webhooks),

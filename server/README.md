@@ -31,8 +31,9 @@ precisam ser portados; a migração completa continua em andamento.
   sessões de contas desabilitadas ou sem função de acesso.
 - Proteção por origem exata em operações POST, incluindo outros subdomínios.
 - Preparação de recebedor Zernio assinado, restrito à conta e com fila criptografada;
-  publicado em 04/11 com recepção desligada. A fila e suas permissões aguardam
-  aplicação autorizada na VPS. Não processa conversas nem envia mensagens.
+  publicado em 04/11 com recepção desligada. A fila e suas permissões limitadas
+  foram aplicadas com autorização e validadas na VPS com dados fictícios e rollback.
+  Não processa conversas nem envia mensagens.
   Veja [estado e publicação coordenada](../docs/whatsapp-nativo.md).
 - Encerramento da sessão atual ou de todas as sessões do usuário.
 - Credencial de execução com acesso limitado e separada da credencial de DDL.
