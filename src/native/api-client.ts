@@ -3,6 +3,16 @@ export interface NativeSession { user: NativeUser; expires_at: string }
 export interface Page<T> { data: T[]; next_offset: number | null }
 export interface AiTestCase { id: string; title: string; message: string; expectation: string }
 export interface AiTestResult { case_id: string; reply: string; model: string; elapsed_ms: number }
+export interface AgentSettings {
+  company_name: string; assistant_name: string; system_prompt: string; timezone: string;
+  business_hours_start: string; business_hours_end: string; business_days: number[];
+  scheduling_policy: 'human_only'; response_delay_min: number; response_delay_max: number;
+  message_breaking_enabled: boolean; audio_response_requested: boolean; source_scheduling_flag: boolean;
+  source_automation_active: boolean; source_auto_response_enabled: boolean; source_model_mode: string;
+  source_business_hours_end: string; review_notes: string[];
+}
+export interface AgentSettingsResponse { configured: boolean; settings: AgentSettings | null;
+  imported_at: string | null; payload_sha256: string | null; automatic_replies_enabled: false; appointment_actions_enabled: false }
 export interface AiRehearsalCase extends AiTestCase { context: string }
 export interface AiRehearsalResult {
   case_id: string; reply: string; model: string | null; elapsed_ms: number;
@@ -35,6 +45,7 @@ const messages: Record<string, string> = {
   AI_UNAVAILABLE: 'A conexão com a IA está indisponível. Tente novamente mais tarde.',
   AI_PROVIDER_LIMIT: 'O limite do provedor de IA foi atingido. Tente novamente mais tarde.',
   AI_INVALID_RESPONSE: 'A Nina não conseguiu concluir a resposta. Tente novamente mais tarde.',
+  SETTINGS_UNAVAILABLE: 'As configurações da Nina estão temporariamente indisponíveis. Tente novamente mais tarde.',
   BODY_TOO_LARGE: 'Reduza o tamanho das observações e tente novamente.',
   VERSION_CONFLICT: 'Outra pessoa alterou este registro. Feche a edição, atualize a página e confira os dados antes de editar novamente.',
   IDEMPOTENCY_CONFLICT: 'Esta operação já foi recebida. Feche a edição e atualize a página para conferir o resultado.',
@@ -105,6 +116,18 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     return page;
   }
   return {
+    agentSettings: async (signal?: AbortSignal) => {
+      const data = await request<AgentSettingsResponse>('/v1/agent/settings', { signal, protected: true });
+      if (!data || typeof data.configured !== 'boolean' || data.automatic_replies_enabled !== false || data.appointment_actions_enabled !== false ||
+        (data.configured !== (data.settings !== null)) || (data.imported_at !== null && typeof data.imported_at !== 'string') ||
+        (data.payload_sha256 !== null && !/^[a-f0-9]{64}$/.test(data.payload_sha256)) ||
+        (data.settings !== null && (!data.settings || typeof data.settings !== 'object' ||
+          !['company_name','assistant_name','system_prompt','timezone','business_hours_start','business_hours_end'].every(k => typeof data.settings?.[k as keyof AgentSettings] === 'string') ||
+          data.settings.system_prompt.length > 60000 || data.settings.scheduling_policy !== 'human_only' ||
+          !Array.isArray(data.settings.business_days) || data.settings.business_days.length > 7 || data.settings.business_days.some(n => !Number.isInteger(n) || n < 0 || n > 6) ||
+          !Array.isArray(data.settings.review_notes) || data.settings.review_notes.length > 10 || data.settings.review_notes.some(n => typeof n !== 'string' || n.length > 500)))) throw new ClientError(502, 'INVALID_RESPONSE');
+      return data;
+    },
     fileUrl(id: string, download = false) {
       if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id)) throw new ClientError(400, 'INVALID_QUERY');
       return url.origin + '/v1/files/' + id.toLowerCase() + (download ? '?download=1' : '');

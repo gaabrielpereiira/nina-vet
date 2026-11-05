@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNativeClient, ClientError, consumeRecoveryToken } from '../src/native/api-client.ts';
+import { fictionalSettings } from './support/agent-settings-fixture.mjs';
 
 test('native client: rehearsal keeps a fixed scenario ID and rejects executed or malformed results', async () => {
   const result = { case_id: 'humano', reply: 'Proposta de encaminhamento.', model: 'test', elapsed_ms: 10,
@@ -126,4 +127,15 @@ test('native client: private attachment links stay on the configured API and rej
  assert.equal(client.fileUrl(id),'https://api.example.com/v1/files/'+id.toLowerCase());assert.equal(client.fileUrl(id,true),'https://api.example.com/v1/files/'+id.toLowerCase()+'?download=1');
  for(const bad of ['https://attacker.invalid/image','../private','x?token=private','11111111-1111-1111-8111-111111111111'])assert.throws(()=>client.fileUrl(bad));
  const controller=new AbortController();await client.channelStatus(controller.signal);assert.equal(calls[0].url,'https://api.example.com/v1/channels/status');assert.equal(calls[0].options.credentials,'include');assert.equal(calls[0].options.signal,controller.signal);
+});
+
+test('native client: agent settings are read-only, authenticated and reject activation or malformed data',async()=>{
+ const result={configured:true,settings:fictionalSettings,imported_at:'2026-11-05T18:00:00Z',payload_sha256:'a'.repeat(64),automatic_replies_enabled:false,appointment_actions_enabled:false};
+ let call;const signal=new AbortController().signal;
+ const client=createNativeClient('https://api.nina.example.com',async(url,options)=>{call={url,options};return Response.json(result);});
+ assert.equal((await client.agentSettings(signal)).settings.business_hours_end,'22:00');
+ assert.equal(call.url,'https://api.nina.example.com/v1/agent/settings'); assert.equal(call.options.method,'GET'); assert.equal(call.options.credentials,'include'); assert.equal(call.options.signal,signal);
+ for(const patch of [{automatic_replies_enabled:true},{appointment_actions_enabled:true},{settings:{...fictionalSettings,business_days:[9]}},{configured:false},{payload_sha256:'invalid'}, {settings:{...fictionalSettings,system_prompt:null}}]){
+  await assert.rejects(createNativeClient('https://api.nina.example.com',async()=>Response.json({...result,...patch})).agentSettings(),{code:'INVALID_RESPONSE'});
+ }
 });

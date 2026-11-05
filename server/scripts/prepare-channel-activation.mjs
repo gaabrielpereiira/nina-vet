@@ -5,7 +5,9 @@ import {readMigrations} from '../src/migrations.mjs';
 
 export async function prepareChannelActivation(accountId,profileId) {
  if(!/^[a-f0-9]{24}$/.test(accountId??'')||!/^[a-f0-9]{24}$/.test(profileId??''))throw Error('INVALID_CHANNEL_SCOPE');
- const migrations=await readMigrations();
+ const source=await readMigrations();
+ if(source.length>7||(source.length===7&&source[6].version!=='0007_agent_settings.sql'))throw Error('UNEXPECTED_MIGRATION_SOURCE');
+ const migrations=source.slice(0,6);
  if(migrations.length!==6||migrations[5].version!=='0006_channel_processing.sql')throw Error('UNEXPECTED_MIGRATION_SOURCE');
  const roleSql=await readFile(new URL('../sql/channel-processing-role.sql',import.meta.url),'utf8');
  const expected=migrations.slice(0,5).map(m=>"('"+m.version+"','"+m.checksum+"')").join(',\n');

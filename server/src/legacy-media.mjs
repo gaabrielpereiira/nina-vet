@@ -44,7 +44,7 @@ export async function copyLegacyMedia(plan,{archive,onProgress=()=>{},pause=()=>
 }
 export function prepareLegacyMediaSql(manifest,migrations) {
  if(!manifest?.complete||manifest.failed?.length!==0||!/^[a-f0-9]{24}$/.test(manifest.account_id??'')||!fileUuid.test(manifest.run_id??'')||!Array.isArray(manifest.rows)||!manifest.rows.length||manifest.rows.length>5000||manifest.source_count!==manifest.rows.length)fail('LEGACY_INCOMPLETE_MANIFEST');
- if(!Array.isArray(migrations)||migrations.length!==6||migrations[5].version!=='0006_channel_processing.sql'||migrations.some(m=>!/^\d{4}_[a-z0-9_]+\.sql$/.test(m.version)||!digest.test(m.checksum)))fail('LEGACY_SCHEMA_SOURCE_CHANGED');
+ if(!Array.isArray(migrations)||![6,7].includes(migrations.length)||migrations[5].version!=='0006_channel_processing.sql'||(migrations.length===7&&migrations[6].version!=='0007_agent_settings.sql')||migrations.some(m=>!/^\d{4}_[a-z0-9_]+\.sql$/.test(m.version)||!digest.test(m.checksum)))fail('LEGACY_SCHEMA_SOURCE_CHANGED');
  const nativeIds=new Set(),fileIds=new Set();
  for(const row of manifest.rows){if(!uuid.test(row.message_id??'')||!fileUuid.test(row.file_id??'')||!digest.test(row.source_sha256??'')||!digest.test(row.sha256??'')||!Number.isSafeInteger(row.bytes)||row.bytes<1||row.bytes>134217728||typeof row.mime!=='string'||row.mime.length>=150||!mime.test(row.mime)||nativeIds.has(row.message_id)||fileIds.has(row.file_id))fail('LEGACY_INVALID_MANIFEST');nativeIds.add(row.message_id);fileIds.add(row.file_id);}
  const data=JSON.stringify(manifest.rows.map(({message_id,file_id,source_sha256,bytes,sha256,mime})=>({message_id,file_id,source_sha256,bytes,sha256,mime}))),fingerprint=createHash('sha256').update(data).digest('hex');let tag='nina_media_'+fingerprint.slice(0,16);while(data.includes('$'+tag+'$'))tag+='x';
@@ -63,7 +63,7 @@ DO $guard$
 DECLARE locked_count integer;
 BEGIN
  IF current_database()<>'nina' OR NOT pg_has_role(current_user,'pg_database_owner','MEMBER') THEN RAISE EXCEPTION 'LEGACY_MAINTENANCE_ONLY'; END IF;
- IF (SELECT count(*) FROM nina_meta.schema_migrations)<>6 OR EXISTS(
+ IF (SELECT count(*) FROM nina_meta.schema_migrations)<>${migrations.length} OR EXISTS(
  SELECT 1 FROM(VALUES ${expected}) expected(version,checksum) LEFT JOIN nina_meta.schema_migrations actual USING(version)
  WHERE actual.checksum IS DISTINCT FROM expected.checksum) THEN RAISE EXCEPTION 'LEGACY_SCHEMA_CHANGED'; END IF;
  IF NOT EXISTS(SELECT 1 FROM nina_channels.processor_scope WHERE account_id='${manifest.account_id}') THEN RAISE EXCEPTION 'LEGACY_ACCOUNT_MISMATCH'; END IF;

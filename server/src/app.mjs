@@ -8,6 +8,7 @@ import { createClinic } from './clinic.mjs';
 import { createClinicWriter } from './clinic-writes.mjs';
 import { createAiTests } from './ai-tests.mjs';
 import { createAiRehearsals } from './ai-rehearsals.mjs';
+import { createAgentSettings } from './agent-settings.mjs';
 import { createZernioWebhook } from './zernio-webhook.mjs';
 import { createChannelFiles } from './channel-files.mjs';
 
@@ -48,6 +49,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
   const writeClinic = createClinicWriter(db, auth);
   const aiTests = createAiTests(db, auth, config, aiFetch, log);
   const aiRehearsals = createAiRehearsals(db, auth, config, aiFetch, log);
+  const agentSettings = createAgentSettings(db, auth);
   const zernioWebhook = createZernioWebhook(db, config.zernio, log);
   const channelFiles = createChannelFiles(db,auth,config);
   return async function handle(request) {
@@ -107,6 +109,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
           // existing migrations stay mandatory; unknown/mismatched history fails.
           const channelsEnabled=config.zernio?.enabled||config.channelProcessing?.enabled||config.media?.enabled;
           const optionalVersions = channelsEnabled ? [] : ['0005_zernio_inbox.sql','0006_channel_processing.sql'];
+          optionalVersions.push('0007_agent_settings.sql');
           if (await checkSchema(db, migrations, optionalVersions)) {
             if(config.media?.enabled){
               await mediaReady();
@@ -163,6 +166,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
       }
       if (path === '/v1/ai/tests') return respond(await aiTests(request, () => jsonBody(request)));
       if (path === '/v1/ai/rehearsals') return respond(await aiRehearsals(request, () => jsonBody(request)));
+      if (path === '/v1/agent/settings' && request.method === 'GET') return respond(await agentSettings(request));
       if (request.method === 'POST' && path.startsWith('/v1/clinic/')) {
         return respond(await writeClinic(request, () => jsonBody(request)));
       }

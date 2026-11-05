@@ -27,3 +27,11 @@
 .ai-proposal > div { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .ai-proposal dt { color: var(--muted); }
 .ai-proposal dd { margin: 0; }
+.agent-panel { padding: 24px; margin-bottom: 22px; max-width: 1000px; overflow-wrap: anywhere; }
+.agent-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; margin: 24px 0; }
+.agent-summary dt { color: var(--muted); font-size: .8rem; margin-bottom: 5px; }
+.agent-summary dd { margin: 0; font-weight: 600; }
+.agent-panel li { line-height: 1.7; margin-bottom: 10px; }
+.agent-prompt { width: 100%; resize: vertical; border: 1px solid var(--border); border-radius: 9px; padding: 16px; color: inherit; background: #f8fbfa; font: inherit; line-height: 1.7; }
+.agent-prompt:focus-visible { outline: 3px solid #4bada1; outline-offset: 3px; }
+@media(max-width:600px) { .agent-panel { padding: 18px; } .agent-summary { grid-template-columns: 1fr; } }
