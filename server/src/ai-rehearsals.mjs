@@ -18,7 +18,7 @@ const scenarios = [
     procedures: [{ name: 'Cirurgia', is_active: true, price_type: 'range', price_min: '200.00', price_max: null }] },
   { id: 'reagendamento_ambiguo', title: 'Dois agendamentos possíveis', message: 'Quero mudar minha consulta para dia 12/11 às 15h.',
     context: 'Há duas consultas fictícias: 09/11 às 10h e 10/11 às 11h.', expectation: 'Perguntar qual consulta deve ser alterada.',
-    appointments: [appointment, { id: 'consulta-ficticia-2', date: '2026-11-10', time: '11:00' }] },
+    intent: 'reschedule', appointments: [appointment, { id: 'consulta-ficticia-2', date: '2026-11-10', time: '11:00' }] },
   { id: 'reagendamento', title: 'Reagendamento identificado', message: 'Mude a minha consulta de 09/11 às 10h para 12/11 às 15h.',
     context: 'Há uma única consulta fictícia em 09/11 às 10h.', expectation: 'Propor o reagendamento para revisão, sem alterar a agenda.', appointments: [appointment] },
   { id: 'cancelamento', title: 'Pedido de cancelamento', message: 'Preciso cancelar minha consulta de 09/11 às 10h.',
@@ -100,6 +100,8 @@ export function createAiRehearsals(db, auth, config, fetcher, log) {
     const base = { case_id: scenario.id, simulated: true, clinical_writes: 0, outbound_messages: 0 };
     if (compiled.blockReason) return { ...base, reply: 'A Nina permanece em silêncio neste cenário.',
       proposed_action: null, blocked_reason: compiled.blockReason, provider_called: false, model: null, elapsed_ms: 0 };
+    if (compiled.clarification) return { ...base, reply: compiled.clarification,
+      proposed_action: null, blocked_reason: null, provider_called: false, model: null, elapsed_ms: 0 };
     if (!config.aiTests?.enabled) throw unavailable();
     await minute(user.id); await daily(user.id);
     const started = Date.now(), result = await generate(compiled);

@@ -53,6 +53,19 @@ test('orchestration decisions: text is inert, thoughts excluded, handoff remains
   assert.match(result.reply, /Nenhuma transferência foi executada/);
   assert.match(parse(tool('request_human_handoff', { reason: 'Possível urgência', urgent: true })).reply, /imediatamente/);
 });
+test('orchestration decisions: ordinary reply is a validated structured decision, not an action', () => {
+  assert.equal(compileNinaRehearsal(scenario).payload.toolConfig.functionCallingConfig.mode, 'ANY');
+  assert.deepEqual(parse(tool('reply_to_tutor', { reply: 'Qual é o nome do animal?' })), { reply: 'Qual é o nome do animal?', proposed_action: null });
+  assert.throws(() => parse(tool('reply_to_tutor', { reply: 'Olá', url: 'https://evil.example' })), { code: 'AI_INVALID_RESPONSE' });
+  assert.throws(() => parse(generated([{ functionCall: { name: 'reply_to_tutor', args: { reply: 'Olá' } } },
+    { functionCall: { name: 'request_human_handoff', args: { reason: 'help', urgent: false } } }])), { code: 'AI_INVALID_RESPONSE' });
+});
+test('orchestration policy: ambiguous change asks for identification before calling the provider', () => {
+  const compiled = compileNinaRehearsal({ ...scenario, intent: 'reschedule', appointments: [
+    { id: 'first', date: '2026-11-09', time: '10:00' }, { id: 'second', date: '2026-11-10', time: '11:00' }] });
+  assert.equal(compiled.payload, undefined); assert.match(compiled.clarification, /09\/11 às 10:00 ou 10\/11 às 11:00/);
+  assert.throws(() => parseNinaDecision(tool('propose_cancellation', { appointment_id: 'first' }), compiled), { code: 'AI_INVALID_RESPONSE' });
+});
 test('orchestration decisions: malformed, missing, truncated and multi-action output fails closed', () => {
   for (const data of [{}, { promptFeedback: { blockReason: 'SAFETY' }, ...generated([{ text: 'blocked' }]) },
     { candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'cut' }] } }] }, generated([]), generated([null]),

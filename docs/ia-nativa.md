@@ -20,6 +20,8 @@ sem conversão de `null` para zero. A implementação usa os campos nativos
 
 O Gemini é chamado diretamente pelo endpoint `generateContent`, com ferramentas
 de proposta de agendamento, reagendamento, cancelamento e encaminhamento.
+Uma ferramenta de resposta comum completa o contrato: `mode: ANY` solicita uma
+decisão estruturada, inclusive quando a Nina apenas precisa responder ou perguntar.
 As ferramentas de alteração só ficam disponíveis quando há uma única consulta
 fictícia identificada; IDs, campos, datas, horários e ações retornados são
 validados novamente no servidor. A saída aceita no máximo uma proposta e nunca
@@ -27,7 +29,8 @@ validados novamente no servidor. A saída aceita no máximo uma proposta e nunca
 para não apresentar a ação como concluída. Respostas truncadas ou inválidas são
 rejeitadas. Não há segundo turno automático, retry pago ou executor de ferramentas.
 
-Pausa e bloqueio são conferidos localmente, sem chamar o provedor. Os demais
+Pausa, bloqueio e a identificação da consulta em pedidos ambíguos de alteração
+são conferidos localmente, sem chamar o provedor. Os demais
 ensaios usam o mesmo modelo, chave e limites persistidos dos exemplos originais:
 três chamadas por minuto, vinte por dia na clínica e dez por administrador.
 Os endpoints compartilham os contadores; não há ampliação da cota nem novos

@@ -55,7 +55,7 @@ test('native rehearsals: ten fixed fictional cases, arbitrary context, IDs and o
   assert.equal(calls.length, 0);
 });
 test('native rehearsals: pause/block are checked without provider, quota or clinical writes', async () => {
-  for (const case_id of ['pausado', 'bloqueado']) {
+  for (const case_id of ['pausado', 'bloqueado', 'reagendamento_ambiguo']) {
     const response = await app(request({ case_id })); assert.equal(response.status, 200);
     const result = await response.json(); assert.equal(result.provider_called, false); assert.equal(result.proposed_action, null);
     assert.equal(result.clinical_writes, 0); assert.equal(result.outbound_messages, 0); assert.equal(result.model, null);

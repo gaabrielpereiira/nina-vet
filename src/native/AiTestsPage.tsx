@@ -90,7 +90,7 @@ function RehearsalPanel() {
     return () => { controller.abort(); active.current?.abort(); };
   }, [revision]);
   const scenario = data?.cases.find(item => item.id === selected);
-  const local = ['pausado', 'bloqueado'].includes(selected);
+  const local = ['pausado', 'bloqueado', 'reagendamento_ambiguo'].includes(selected);
   const run = async () => {
     if (!scenario || (!data?.enabled && !local) || pending.current) return;
     pending.current = true; setBusy(true); setError(null); setResult(null);
@@ -118,7 +118,7 @@ function RehearsalPanel() {
       </select>
       {scenario && <div><p className="ai-message">“{scenario.message}”</p><p>{scenario.context}</p><p className="muted">O que observar: {scenario.expectation}</p></div>}
       <button className="button primary" disabled={busy || !scenario || (!data.enabled && !local)} onClick={run}>
-        {busy ? 'Preparando ensaio…' : local ? 'Conferir regra de pausa' : 'Ensaiar este atendimento'}
+        {busy ? 'Preparando ensaio…' : local ? 'Conferir regra de atendimento' : 'Ensaiar este atendimento'}
       </button>
       {!data.enabled && !local && <p className="empty-note">A conexão com a IA está em preparação.</p>}
     </>}
