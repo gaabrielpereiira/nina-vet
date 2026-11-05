@@ -3,6 +3,14 @@ export interface NativeSession { user: NativeUser; expires_at: string }
 export interface Page<T> { data: T[]; next_offset: number | null }
 export interface AiTestCase { id: string; title: string; message: string; expectation: string }
 export interface AiTestResult { case_id: string; reply: string; model: string; elapsed_ms: number }
+export interface AiRehearsalCase extends AiTestCase { context: string }
+export interface AiRehearsalResult {
+  case_id: string; reply: string; model: string | null; elapsed_ms: number;
+  simulated: true; clinical_writes: 0; outbound_messages: 0; provider_called: boolean;
+  blocked_reason: 'global_paused' | 'contact_blocked' | 'conversation_paused' | 'human_control' | null;
+  proposed_action: { name: 'request_human_handoff' | 'propose_appointment' | 'propose_reschedule' | 'propose_cancellation';
+    args: Record<string, string | boolean> } | null;
+}
 export interface Contact {
   revision: number; id: string; name: string | null; call_name: string | null; phone_number: string | null;
   email: string | null; tags: string[] | null; notes: string | null;
@@ -123,6 +131,26 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
       const result = await request<AiTestResult>('/v1/ai/tests', { body: { case_id }, signal, protected: true });
       if (!result || typeof result !== 'object' || result.case_id !== case_id || typeof result.reply !== 'string' || !result.reply.trim() || result.reply.length > 6000 ||
           typeof result.model !== 'string' || !Number.isFinite(result.elapsed_ms) || result.elapsed_ms < 0) throw new ClientError(502, 'INVALID_RESPONSE');
+      return result;
+    },
+    aiRehearsalCases: async (signal?: AbortSignal) => {
+      const data = await request<{ enabled: boolean; cases: AiRehearsalCase[] }>('/v1/ai/rehearsals', { signal, protected: true });
+      if (!data || typeof data.enabled !== 'boolean' || !Array.isArray(data.cases) || data.cases.length > 10 || data.cases.some(item =>
+        !item || !['id', 'title', 'message', 'context', 'expectation'].every(key => typeof item[key as keyof AiRehearsalCase] === 'string'))) throw new ClientError(502, 'INVALID_RESPONSE');
+      return data;
+    },
+    aiRehearsal: async (case_id: string, signal?: AbortSignal) => {
+      const result = await request<AiRehearsalResult>('/v1/ai/rehearsals', { body: { case_id }, signal, protected: true });
+      if (!result || result.case_id !== case_id || result.simulated !== true || result.clinical_writes !== 0 || result.outbound_messages !== 0 ||
+        typeof result.reply !== 'string' || !result.reply.trim() || result.reply.length > 6000 || typeof result.provider_called !== 'boolean' ||
+        !(result.model === null || typeof result.model === 'string') || !Number.isFinite(result.elapsed_ms) || result.elapsed_ms < 0 ||
+        !(result.blocked_reason === null || ['global_paused', 'contact_blocked', 'conversation_paused', 'human_control'].includes(result.blocked_reason)) ||
+        !(result.proposed_action === null || (typeof result.proposed_action === 'object' &&
+          ['request_human_handoff', 'propose_appointment', 'propose_reschedule', 'propose_cancellation'].includes(result.proposed_action.name) &&
+          result.proposed_action.args && typeof result.proposed_action.args === 'object' && !Array.isArray(result.proposed_action.args) &&
+          Object.entries(result.proposed_action.args).length <= 4 && Object.entries(result.proposed_action.args).every(([k, v]) =>
+            ['reason', 'urgent', 'pet_name', 'date', 'time', 'appointment_id'].includes(k) &&
+            (typeof v === 'boolean' || (typeof v === 'string' && v.length <= 300)))))) throw new ClientError(502, 'INVALID_RESPONSE');
       return result;
     },
     contacts: (q = '', offset = 0, signal?: AbortSignal) => list<Contact>('contacts', { q, limit: 50, offset }, signal),

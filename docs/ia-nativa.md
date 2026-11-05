@@ -1,5 +1,50 @@
 # Integração nativa de IA — etapa de ensaio
 
+## Decisões do atendimento — 05/11/2026
+
+O núcleo nativo de decisão foi acrescentado aos exemplos existentes, em
+`/v1/ai/rehearsals` e na seção **Ensaio do atendimento** de `/nina/testes`.
+Há dez cenários fixos: histórico com nomes já informados, preço conhecido,
+intervalo incompleto, reagendamento ambíguo, reagendamento identificado,
+cancelamento, pedido de humano, possível urgência, pausa e bloqueio.
+Nomes, preços, consultas, datas e mensagens são fictícios e definidos no servidor.
+O cliente envia somente `case_id`; texto livre, IDs clínicos, configurações e
+parâmetros de URL são rejeitados. Somente administradores têm acesso.
+
+O módulo `nina-decision.mjs` contém política de pausa/bloqueio, contexto limitado
+a vinte mensagens e validação das decisões. Conversas inativas, arquivadas,
+pausadas ou atribuídas à equipe não permitem geração. Flags ausentes também
+bloqueiam. Preços desconhecidos ou intervalos incompletos permanecem sem valor,
+sem conversão de `null` para zero. A implementação usa os campos nativos
+`assigned_user_id`, `assigned_team`, `is_active`, `ai_paused` e `archived_at`.
+
+O Gemini é chamado diretamente pelo endpoint `generateContent`, com ferramentas
+de proposta de agendamento, reagendamento, cancelamento e encaminhamento.
+As ferramentas de alteração só ficam disponíveis quando há uma única consulta
+fictícia identificada; IDs, campos, datas, horários e ações retornados são
+validados novamente no servidor. A saída aceita no máximo uma proposta e nunca
+é executada. Quando há proposta, a mensagem exibida é composta pelo servidor
+para não apresentar a ação como concluída. Respostas truncadas ou inválidas são
+rejeitadas. Não há segundo turno automático, retry pago ou executor de ferramentas.
+
+Pausa e bloqueio são conferidos localmente, sem chamar o provedor. Os demais
+ensaios usam o mesmo modelo, chave e limites persistidos dos exemplos originais:
+três chamadas por minuto, vinte por dia na clínica e dez por administrador.
+Os endpoints compartilham os contadores; não há ampliação da cota nem novos
+grants ou migrações. O histórico real e as configurações privadas antigas não
+são consultados ou enviados ao Google nesta etapa. Os resultados não são salvos
+nas conversas nem enviados ao WhatsApp.
+
+Esta entrega é a primeira parte da orquestração, ainda sem equivalência completa
+com o sistema antigo. A migração do prompt/configurações reais, memória, escolha
+de procedimentos, contexto real, ações na agenda, VetSoft, áudio, envio e rotinas
+de análise continua pendente. O atendimento permanece com a equipe/CRM.
+
+Referência do protocolo consultada em 05/11:
+[function calling no generateContent](https://ai.google.dev/gemini-api/docs/generate-content/function-calling?hl=en).
+O contrato é validado também localmente; o uso de ferramentas pelo modelo não
+constitui autorização para executar ações.
+
 ## Estado em 03/11/2026
 
 A página está publicada e `AI_TESTS_ENABLED=true` está salvo na API. Os três

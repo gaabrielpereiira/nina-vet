@@ -2,6 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNativeClient, ClientError, consumeRecoveryToken } from '../src/native/api-client.ts';
 
+test('native client: rehearsal keeps a fixed scenario ID and rejects executed or malformed results', async () => {
+  const result = { case_id: 'humano', reply: 'Proposta de encaminhamento.', model: 'test', elapsed_ms: 10,
+    simulated: true, clinical_writes: 0, outbound_messages: 0, provider_called: true, blocked_reason: null,
+    proposed_action: { name: 'request_human_handoff', args: { reason: 'Pedido fictício', urgent: false } } };
+  const calls = [], signal = new AbortController().signal;
+  const client = createNativeClient('https://api.nina.example.com', async (url, options) => { calls.push({ url, options }); return Response.json(result); });
+  assert.equal((await client.aiRehearsal('humano', signal)).proposed_action.name, 'request_human_handoff');
+  assert.equal(calls[0].url, 'https://api.nina.example.com/v1/ai/rehearsals');
+  assert.deepEqual(JSON.parse(calls[0].options.body), { case_id: 'humano' }); assert.equal(calls[0].options.credentials, 'include'); assert.equal(calls[0].options.signal, signal);
+  for (const patch of [{ simulated: false }, { clinical_writes: 1 }, { outbound_messages: 1 }, { case_id: 'other' },
+    { proposed_action: { name: 'send_message', args: {} } }, { proposed_action: { name: 'request_human_handoff', args: { url: 'https://evil.example' } } },
+    { proposed_action: { name: 'request_human_handoff', args: { reason: {} } } }, { blocked_reason: 'unknown' }]) {
+    await assert.rejects(createNativeClient('https://api.nina.example.com', async () => Response.json({ ...result, ...patch })).aiRehearsal('humano'), { code: 'INVALID_RESPONSE' });
+  }
+});
+
 test('native client: AI tests send only a scenario ID using native cookie authentication',async()=>{
   const calls=[],signal=new AbortController().signal;
   const client=createNativeClient('https://api.nina.example.com',async(url,options)=>{

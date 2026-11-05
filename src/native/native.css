@@ -21,3 +21,9 @@
 .attachment-download { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; overflow-wrap: anywhere; }
 .channel-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; max-width: 640px; margin: 24px 0; }
 .channel-summary dd { margin: 0; }
+.ai-rehearsal-select { font: inherit; width: 100%; padding: 12px; border: 1px solid #c6d8d3; border-radius: 9px; color: inherit; background: white; margin-bottom: 18px; }
+.ai-rehearsal-select:focus-visible { outline: 3px solid #4bada1; outline-offset: 3px; }
+.ai-rehearsal { overflow-wrap: anywhere; }
+.ai-proposal > div { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr); gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.ai-proposal dt { color: var(--muted); }
+.ai-proposal dd { margin: 0; }

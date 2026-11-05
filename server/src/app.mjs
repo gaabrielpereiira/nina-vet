@@ -7,6 +7,7 @@ import { createPasswordRecovery } from './password-recovery.mjs';
 import { createClinic } from './clinic.mjs';
 import { createClinicWriter } from './clinic-writes.mjs';
 import { createAiTests } from './ai-tests.mjs';
+import { createAiRehearsals } from './ai-rehearsals.mjs';
 import { createZernioWebhook } from './zernio-webhook.mjs';
 import { createChannelFiles } from './channel-files.mjs';
 
@@ -46,6 +47,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
   const clinic = createClinic(db, auth, {mediaEnabled:config.media?.enabled===true});
   const writeClinic = createClinicWriter(db, auth);
   const aiTests = createAiTests(db, auth, config, aiFetch, log);
+  const aiRehearsals = createAiRehearsals(db, auth, config, aiFetch, log);
   const zernioWebhook = createZernioWebhook(db, config.zernio, log);
   const channelFiles = createChannelFiles(db,auth,config);
   return async function handle(request) {
@@ -160,6 +162,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
         return respond(result.body);
       }
       if (path === '/v1/ai/tests') return respond(await aiTests(request, () => jsonBody(request)));
+      if (path === '/v1/ai/rehearsals') return respond(await aiRehearsals(request, () => jsonBody(request)));
       if (request.method === 'POST' && path.startsWith('/v1/clinic/')) {
         return respond(await writeClinic(request, () => jsonBody(request)));
       }
