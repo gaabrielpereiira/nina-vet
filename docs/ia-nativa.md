@@ -123,3 +123,37 @@ Referências consultadas em 03/11/2026: [generateContent](https://aistudio.googl
 [modelo](https://aistudio.google.com/docs/models/gemini-3.5-flash-lite),
 [preços e uso de dados por plano](https://aistudio.google.com/docs/pricing).
 Antes de usar dados reais, conferir o plano e as condições da conta Google.
+
+## Publicação e validação real desta etapa — 05/11/2026
+
+API e interface publicadas no commit
+`7cdbd9cea1f0a234c07fdf2d7f03ead4cf79d7f8`, pela branch
+`codex/zernio-message-processing`, com autodeploy desligado. A suíte passou com
+217 testes, typecheck e build. Migrations, grants, recepção e escrita clínica
+não foram alterados. `healthz`/`readyz` responderam 200; o endpoint de ensaio
+sem autenticação respondeu 401; a interface respondeu 200.
+
+Pela conta administrativa existente na tela real, foram conferidos pausa,
+bloqueio, encaminhamento para a equipe e proposta de horário com nomes do
+histórico fictício. Duas chamadas ao provedor para o pedido ambíguo atingiram
+45 s (`TIMEOUT`, sem diagnóstico privado ou retry automático). O pedido de
+identificação passou a ser uma regra local anterior ao provedor. O contrato de
+resposta comum também passou a utilizar decisão estruturada. Esses ajustes não
+comprovam a causa dos timeouts do provedor.
+
+Na versão final, a conferência pela tela confirmou:
+
+- Preço fictício conhecido: R$ 120,00, resposta em 1,0 s.
+- Intervalo incompleto: resposta sob consulta, em 1,6 s.
+- Proposta para Luna em 10/11 às 14h, em 0,9 s, sem executar reserva.
+- Pedido ambíguo: pergunta qual das duas consultas alterar, sem chamar a IA.
+
+Foram sete chamadas reais nesta etapa (cinco respostas e dois timeouts), todas
+com dados fictícios. Não houve envio de dados clínicos reais ao Gemini, mensagens
+ao WhatsApp, reserva de horário ou gravação de resultados em conversas. Os dez
+cenários estão disponíveis, mas nem todos foram executados contra o provedor
+real nesta conferência. Os testes automatizados usam provedores simulados.
+
+Após as publicações, a tela do WhatsApp mostrou recebimento e histórico ligados,
+arquivos privados disponíveis e zero pendências (842 eventos registrados naquele
+checkpoint). Configurações reais antigas, ações e integrações continuam pendentes.
