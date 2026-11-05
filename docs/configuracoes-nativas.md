@@ -54,3 +54,37 @@ A compatibilidade dos operadores de mídia e de ativação do canal foi ajustada
 para reconhecer a nova versão conhecida sem aceitar migrações desconhecidas nem
 modificar os arquivos de migração anteriores. A ativação histórica do canal ainda
 instala apenas a versão 0006 e mantém a configuração 0007 para uma etapa própria.
+
+## Resultado em 05/11/2026
+
+API e interface publicadas no commit
+`967cbf34b754ebb3131fe9561eec9940499ad682`, mantendo os autodeploys desligados.
+A suíte passou com 224 testes, typecheck e build. O backup nativo anterior à
+importação tem 32.049.727 bytes, modo 600 e leitura integral pelo pg_restore
+conferida. O ensaio real no PostgreSQL terminou em ROLLBACK, voltando às seis
+migrações e sem schema `nina_agent`. O mesmo núcleo terminou depois em COMMIT.
+A versão 0007 está aplicada e há um registro de configuração. Não reaplicar o
+SQL preparado; o guard rejeita um banco com a nova versão já instalada.
+
+O texto original tem 20.981 bytes e SHA-256
+`a4554036b38c3873261300ed753cf0662e914847c36380b47eb0bd5ee0742266`.
+Esse digest foi conferido na extração, no PostgreSQL e no campo somente leitura
+da interface administrativa real. Os horários e a política humana foram
+conferidos na tela. A leitura pelo papel limitado com uma identidade real da
+equipe sem administração retornou zero registros; o papel não pode inserir,
+alterar, excluir ou criar objetos. A identidade anônima também não leu a linha.
+`healthz`/`readyz` retornaram 200 e o endpoint de configuração sem login, 401.
+
+A conferência do canal mostrou recebimento e registro ligados, arquivos privados
+disponíveis, zero eventos aguardando/em processamento e um evento que precisa
+de conferência (976 processados naquele checkpoint). O evento é `message.sent`,
+recebido às 18:32 UTC de 05/11, antes desta publicação, com
+`CHANNEL_AMBIGUOUS_CONVERSATION`. O corpo permanece criptografado e não foi lido,
+reprocessado ou marcado como concluído; nenhum vínculo foi escolhido por
+aproximação. A associação precisa ser diagnosticada com evidência antes de uma
+ativação futura. O atendimento da equipe/CRM segue preservado.
+
+As credenciais e a integração nativa com VetSoft, notificações, áudio e contexto
+real ainda não foram ativadas por esta entrega. Nenhum dado real foi enviado ao
+Gemini e nenhuma mensagem foi enviada ao WhatsApp nesta etapa. O sistema antigo
+e os backups continuam preservados.
