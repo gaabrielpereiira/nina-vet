@@ -13,6 +13,9 @@ export interface AgentSettings {
 }
 export interface AgentSettingsResponse { configured: boolean; settings: AgentSettings | null;
   imported_at: string | null; payload_sha256: string | null; automatic_replies_enabled: false; appointment_actions_enabled: false }
+export interface VetsoftConnectionStatus { enabled: boolean; mode: 'read_only'; patient_sync_enabled: false; appointment_writes_enabled: false }
+export interface VetsoftConnectionResult { authenticated: true; service_types_readable: true; sample_count: number;
+  checked_at: string; elapsed_ms: number; mode: 'read_only'; patient_sync_enabled: false; appointment_writes_enabled: false }
 export interface AiRehearsalCase extends AiTestCase { context: string }
 export interface AiRehearsalResult {
   case_id: string; reply: string; model: string | null; elapsed_ms: number;
@@ -46,6 +49,12 @@ const messages: Record<string, string> = {
   AI_PROVIDER_LIMIT: 'O limite do provedor de IA foi atingido. Tente novamente mais tarde.',
   AI_INVALID_RESPONSE: 'A Nina não conseguiu concluir a resposta. Tente novamente mais tarde.',
   SETTINGS_UNAVAILABLE: 'As configurações da Nina estão temporariamente indisponíveis. Tente novamente mais tarde.',
+  VETSOFT_UNAVAILABLE: 'A conexão com o VetSoft está temporariamente indisponível.',
+  VETSOFT_INVALID_RESPONSE: 'O VetSoft não retornou uma resposta válida. Tente novamente mais tarde.',
+  VETSOFT_AUTH_FAILED: 'O VetSoft não aceitou os dados de acesso. Confira a configuração da conexão.',
+  VETSOFT_ACCESS_DENIED: 'A conta do VetSoft não permitiu essa consulta.',
+  VETSOFT_PROVIDER_LIMIT: 'O limite de consultas do VetSoft foi atingido. Aguarde antes de tentar novamente.',
+  INVALID_VETSOFT_CHECK: 'Não foi possível iniciar a verificação. Atualize a página e tente novamente.',
   BODY_TOO_LARGE: 'Reduza o tamanho das observações e tente novamente.',
   VERSION_CONFLICT: 'Outra pessoa alterou este registro. Feche a edição, atualize a página e confira os dados antes de editar novamente.',
   IDEMPOTENCY_CONFLICT: 'Esta operação já foi recebida. Feche a edição e atualize a página para conferir o resultado.',
@@ -116,6 +125,19 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     return page;
   }
   return {
+    vetsoftStatus: async (signal?: AbortSignal) => {
+      const data = await request<VetsoftConnectionStatus>('/v1/integrations/vetsoft', { signal, protected: true });
+      if (!data || typeof data.enabled !== 'boolean' || data.mode !== 'read_only' || data.patient_sync_enabled !== false || data.appointment_writes_enabled !== false) throw new ClientError(502, 'INVALID_RESPONSE');
+      return data;
+    },
+    checkVetsoft: async (signal?: AbortSignal) => {
+      const data = await request<VetsoftConnectionResult>('/v1/integrations/vetsoft/check', { body: {}, signal, protected: true });
+      if (!data || data.authenticated !== true || data.service_types_readable !== true || data.mode !== 'read_only' ||
+        data.patient_sync_enabled !== false || data.appointment_writes_enabled !== false || !Number.isInteger(data.sample_count) ||
+        data.sample_count < 0 || data.sample_count > 5 || typeof data.checked_at !== 'string' || !Number.isFinite(Date.parse(data.checked_at)) ||
+        !Number.isFinite(data.elapsed_ms) || data.elapsed_ms < 0) throw new ClientError(502, 'INVALID_RESPONSE');
+      return data;
+    },
     agentSettings: async (signal?: AbortSignal) => {
       const data = await request<AgentSettingsResponse>('/v1/agent/settings', { signal, protected: true });
       if (!data || typeof data.configured !== 'boolean' || data.automatic_replies_enabled !== false || data.appointment_actions_enabled !== false ||

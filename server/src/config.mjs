@@ -64,6 +64,21 @@ function aiTestConfig(env) {
   return Object.freeze({ enabled: true, key: env.GEMINI_API_KEY });
 }
 
+function vetsoftReadOnlyConfig(env) {
+  if (!flag(env, 'VETSOFT_READ_ONLY_ENABLED')) return Object.freeze({ enabled: false });
+  const tenant = env.VETSOFT_TENANT;
+  const email = env.VETSOFT_EMAIL?.trim();
+  const encoded = env.VETSOFT_PASSWORD_BASE64;
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(tenant ?? '')) throw new Error('Invalid VETSOFT_TENANT');
+  if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Invalid VETSOFT_EMAIL');
+  if (typeof encoded !== 'string' || encoded.length > 1400 || !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) throw new Error('Invalid VETSOFT_PASSWORD_BASE64');
+  const bytes = Buffer.from(encoded, 'base64');
+  const password = bytes.toString('utf8');
+  if (!bytes.length || bytes.length > 1024 || bytes.toString('base64') !== encoded ||
+      !Buffer.from(password).equals(bytes) || password.includes('\u0000')) throw new Error('Invalid VETSOFT_PASSWORD_BASE64');
+  return Object.freeze({ enabled: true, tenant, email, password });
+}
+
 function zernioConfig(env, processing = false) {
   if (!['true', 'false', undefined].includes(env.ZERNIO_WEBHOOK_ENABLED)) throw new Error('Invalid ZERNIO_WEBHOOK_ENABLED');
   const enabled=env.ZERNIO_WEBHOOK_ENABLED==='true';
@@ -102,6 +117,7 @@ export function readConfig(env = process.env) {
     loginGlobalLimit: 200,
     email: emailConfig(env),
     aiTests: aiTestConfig(env),
+    vetsoftReadOnly: vetsoftReadOnlyConfig(env),
     zernio: zernioConfig(env,processing),
     channelProcessing:Object.freeze({enabled:processing,pollMilliseconds:5000,heartbeatMilliseconds:30000}),
     media:Object.freeze(mediaEnabled?{enabled:true,directory:env.MEDIA_STORAGE_DIR,requireMarker:production,

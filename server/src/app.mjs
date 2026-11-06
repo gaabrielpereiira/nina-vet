@@ -9,6 +9,7 @@ import { createClinicWriter } from './clinic-writes.mjs';
 import { createAiTests } from './ai-tests.mjs';
 import { createAiRehearsals } from './ai-rehearsals.mjs';
 import { createAgentSettings } from './agent-settings.mjs';
+import { createVetsoftReadOnly } from './vetsoft-read-only.mjs';
 import { createZernioWebhook } from './zernio-webhook.mjs';
 import { createChannelFiles } from './channel-files.mjs';
 
@@ -42,7 +43,7 @@ async function jsonBody(request) {
   }
 }
 
-export function createApp({ db, config, migrations, log = () => {}, aiFetch = fetch, mediaReady = async()=>true }) {
+export function createApp({ db, config, migrations, log = () => {}, aiFetch = fetch, vetsoftFetch = fetch, mediaReady = async()=>true }) {
   const auth = createAuth(db, config);
   const recovery = createPasswordRecovery(db, config);
   const clinic = createClinic(db, auth, {mediaEnabled:config.media?.enabled===true});
@@ -50,6 +51,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
   const aiTests = createAiTests(db, auth, config, aiFetch, log);
   const aiRehearsals = createAiRehearsals(db, auth, config, aiFetch, log);
   const agentSettings = createAgentSettings(db, auth);
+  const vetsoftReadOnly = createVetsoftReadOnly(db, auth, config, vetsoftFetch, log);
   const zernioWebhook = createZernioWebhook(db, config.zernio, log);
   const channelFiles = createChannelFiles(db,auth,config);
   return async function handle(request) {
@@ -167,6 +169,8 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
       if (path === '/v1/ai/tests') return respond(await aiTests(request, () => jsonBody(request)));
       if (path === '/v1/ai/rehearsals') return respond(await aiRehearsals(request, () => jsonBody(request)));
       if (path === '/v1/agent/settings' && request.method === 'GET') return respond(await agentSettings(request));
+      if ((path === '/v1/integrations/vetsoft' && request.method === 'GET') ||
+          (path === '/v1/integrations/vetsoft/check' && request.method === 'POST')) return respond(await vetsoftReadOnly(request, () => jsonBody(request)));
       if (request.method === 'POST' && path.startsWith('/v1/clinic/')) {
         return respond(await writeClinic(request, () => jsonBody(request)));
       }

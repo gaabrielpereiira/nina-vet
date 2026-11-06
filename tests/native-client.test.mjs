@@ -139,3 +139,11 @@ test('native client: agent settings are read-only, authenticated and reject acti
   await assert.rejects(createNativeClient('https://api.nina.example.com',async()=>Response.json({...result,...patch})).agentSettings(),{code:'INVALID_RESPONSE'});
  }
 });
+test('native client: VetSoft verification sends no credentials and accepts only a read-only result',async()=>{
+ const result={authenticated:true,service_types_readable:true,sample_count:1,checked_at:'2026-11-06T12:00:00Z',elapsed_ms:20,mode:'read_only',patient_sync_enabled:false,appointment_writes_enabled:false};
+ const calls=[];const signal=new AbortController().signal;
+ const client=createNativeClient('https://api.nina.example.com',async(url,options)=>{calls.push({url,options});return Response.json(options.body?result:{enabled:false,mode:'read_only',patient_sync_enabled:false,appointment_writes_enabled:false});});
+ assert.equal((await client.vetsoftStatus(signal)).enabled,false);assert.equal((await client.checkVetsoft(signal)).authenticated,true);
+ assert.equal(calls[1].url,'https://api.nina.example.com/v1/integrations/vetsoft/check');assert.deepEqual(JSON.parse(calls[1].options.body),{});assert.equal(calls[1].options.credentials,'include');assert.equal(calls[1].options.signal,signal);
+ for(const patch of [{authenticated:false},{mode:'write'},{patient_sync_enabled:true},{appointment_writes_enabled:true},{sample_count:6},{checked_at:'invalid'},{elapsed_ms:-1}])await assert.rejects(createNativeClient('https://api.nina.example.com',async()=>Response.json({...result,...patch})).checkVetsoft(),{code:'INVALID_RESPONSE'});
+});

@@ -3,6 +3,7 @@ import { useNativeAuth } from './NativeAuth';
 import { client } from './client';
 import type { AgentSettingsResponse } from './api-client';
 import { ErrorNotice, Loading } from './ui';
+import { VetsoftConnectionPanel } from './VetsoftConnectionPanel';
 
 const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -27,6 +28,7 @@ export function AgentSettingsPage() {
     {error && <ErrorNotice message={error} retry={() => setRevision(n => n + 1)} />}
     {!data && !error && <Loading>Carregando configurações…</Loading>}
     {data && !settings && <section className="panel empty"><h2>Configurações em preparação</h2><p>A recuperação das instruções da clínica está em andamento.</p></section>}
+    <VetsoftConnectionPanel />
     {settings && <>
       <section className="panel agent-panel"><h2>Atendimento com a equipe</h2>
         <p>A Nina continua com as respostas automáticas desligadas. A equipe confirma, altera e cancela os horários dos tutores.</p>
