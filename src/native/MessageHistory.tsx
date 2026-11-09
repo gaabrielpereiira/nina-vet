@@ -8,7 +8,7 @@ import { useNativeAuth } from './NativeAuth';
 const authors: Record<string, string> = { user: 'Tutor', human: 'Equipe', nina: 'Nina', external: 'WhatsApp / CRM' };
 const statuses: Record<string, string> = { sent: 'Enviada', delivered: 'Entregue', read: 'Lida', failed: 'Falha no envio', received: 'Recebida', pending: 'Pendente' };
 const media: Record<string, string> = { audio: 'Mensagem de áudio', image: 'Imagem', video: 'Vídeo', document: 'Documento' };
-function Attachment({ file }: { file: MediaAttachment }) {
+export function Attachment({ file }: { file: MediaAttachment }) {
   const url = client.fileUrl(file.id);
   const [failed, setFailed] = useState(false);
   const name = file.filename || media[file.type] || 'Arquivo';

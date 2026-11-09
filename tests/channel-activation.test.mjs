@@ -18,7 +18,7 @@ test('channel activation: generated SQL validates prior history, applies grants 
   assert.equal((await db.query("SELECT count(*)::int AS n FROM pg_roles WHERE rolname='nina_channel_processor'"))[0].n,0);
   await db.query('UPDATE nina_meta.schema_migrations SET checksum=$1 WHERE version=$2',[migrations[4].checksum,migrations[4].version]);
   await db.exec(executable);
-  assert.equal(await checkSchema(db,migrations,['0007_agent_settings.sql','0008_whatsapp_pilot.sql']),true);await db.exec('SET ROLE nina_app');
+  assert.equal(await checkSchema(db,migrations,['0007_agent_settings.sql','0008_whatsapp_pilot.sql','0009_staff_inbox.sql']),true);await db.exec('SET ROLE nina_app');
   const [r]=await db.query('SELECT nina_channels.runtime_status($1,$2) AS status',['a'.repeat(24),'b'.repeat(24)]);assert.equal(r.status.scope_matches,true);
   await assert.rejects(db.exec('SELECT payload_encrypted FROM nina_channels.zernio_inbox'),/permission denied/);
  }finally{await pg.close();}

@@ -112,6 +112,9 @@ export function readConfig(env = process.env) {
   const production = nodeEnv === 'production';
   const processing=flag(env,'CHANNEL_PROCESSING_ENABLED');
   const mediaEnabled=flag(env,'MEDIA_ENABLED');
+  const inboxEnabled=flag(env,'WHATSAPP_INBOX_ENABLED');
+  const inboxWritable=flag(env,'WHATSAPP_INBOX_WRITES_ENABLED');
+  if ((inboxEnabled&&!processing)||(inboxWritable&&!inboxEnabled)) throw new Error('Invalid WhatsApp inbox flags');
   if(processing&&!mediaEnabled)throw new Error('Channel processing requires MEDIA_ENABLED');
   if(mediaEnabled&&(!isAbsolute(env.MEDIA_STORAGE_DIR??'')||env.MEDIA_STORAGE_DIR==='/'))throw new Error('Invalid MEDIA_STORAGE_DIR');
   return Object.freeze({
@@ -129,6 +132,7 @@ export function readConfig(env = process.env) {
     aiTests: aiTestConfig(env),
     vetsoftReadOnly: vetsoftReadOnlyConfig(env),
     whatsappPilot: whatsappPilotConfig(env, processing),
+    staffInbox: Object.freeze({ enabled:inboxEnabled, writable:inboxWritable }),
     zernio: zernioConfig(env,processing),
     channelProcessing:Object.freeze({enabled:processing,pollMilliseconds:5000,heartbeatMilliseconds:30000}),
     media:Object.freeze(mediaEnabled?{enabled:true,directory:env.MEDIA_STORAGE_DIR,requireMarker:production,

@@ -59,7 +59,7 @@ const reply = () => ({ inbound_id: inboundId, message: '  Recebemos sua mensagem
 
 before(async () => {
   pg = new PGlite(); db = adapter(pg); migrations = await readMigrations(); await migrate(db, migrations);
-  for (const file of ['runtime-role','clinic-runtime-role','clinic-write-role','zernio-inbox-role','channel-processing-role','whatsapp-pilot-role']) {
+  for (const file of ['runtime-role','clinic-runtime-role','clinic-write-role','zernio-inbox-role','channel-processing-role','whatsapp-pilot-role','staff-inbox-role']) {
     await db.exec((await readFile(new URL(`../server/sql/${file}.sql`, import.meta.url),'utf8')).replace('ON DATABASE nina TO','ON DATABASE postgres TO'));
   }
   adminToken = await user('admin'); staffToken = await user('user');
@@ -118,4 +118,93 @@ test('expired window and an ambiguous provider link are blocked before reservati
   await db.exec('SET ROLE nina_app');
   assert.equal((await app(request(reply()))).status,409);
   assert.equal(calls.length,2);
+});
+
+const inboxRequest = (path = '', body, token = staffToken, requestOrigin = origin) => new Request(`${api}/v1/inbox/conversations${path}`, {
+  method:body===undefined?'GET':'POST', headers:{ origin:requestOrigin, ...(token?{cookie:'nina_session='+token}:{}),'content-type':'application/json' },
+  ...(body===undefined?{}:{body:JSON.stringify(body)}),
+});
+let staffInbox;
+test('inbox groups only verified WhatsApp conversations for signed-in staff; read-only mode cannot mutate', async () => {
+  await db.exec('RESET ROLE');
+  await db.query("DELETE FROM nina_channels.conversation_links WHERE kind='internal' AND external_id=$1",['d'.repeat(24)]);
+  await db.exec('SET ROLE nina_app');
+  await receive();
+  staffInbox = build(readConfig({ ...env, WHATSAPP_INBOX_ENABLED:'true' }));
+  const [anonymous, page, thread, denied] = await Promise.all([
+    staffInbox(inboxRequest('',undefined,null)), staffInbox(inboxRequest('?filter=unassigned&q=11999990000')),
+    staffInbox(inboxRequest('/'+conversationId)), staffInbox(inboxRequest('/'+conversationId+'/assume',{})),
+  ]);
+  assert.equal(anonymous.status,401);
+  assert.equal(denied.status,409);
+  const list = await page.json();
+  assert.equal(list.writable,false);
+  assert.equal(list.data.length,1);
+  assert.equal(list.data[0].id,conversationId);
+  assert.equal(list.data[0].assignee,null);
+  const opened = await thread.json();
+  assert.equal(opened.conversation.id,conversationId);
+  assert.equal(opened.data[0].from_type,'user');
+  assert.ok(Date.parse(opened.conversation.reply_until)>Date.now());
+  assert.ok(!JSON.stringify(opened).includes(providerConversation));
+  await assert.rejects(db.query('SELECT * FROM nina_channels.inbox_replies'),/permission denied/);
+  assert.equal((await staffInbox(inboxRequest('/'+randomUUID()))).status,404);
+});
+
+test('two staff members cannot assume the same conversation; only the owner can send and release it', async () => {
+  await db.exec('RESET ROLE');
+  await db.exec(await readFile(new URL('../server/sql/staff-inbox-write-role.sql',import.meta.url),'utf8'));
+  await db.exec('SET ROLE nina_app');
+  staffInbox = build(readConfig({ ...env, WHATSAPP_INBOX_ENABLED:'true', WHATSAPP_INBOX_WRITES_ENABLED:'true' }));
+  const path = '/'+conversationId;
+  const owners = await Promise.all([staffInbox(inboxRequest(path+'/assume',{},staffToken)),staffInbox(inboxRequest(path+'/assume',{},adminToken))]);
+  assert.deepEqual(owners.map(r=>r.status).sort(),[200,409]);
+  const ownerToken = owners[0].ok ? staffToken : adminToken;
+  const otherToken = owners[0].ok ? adminToken : staffToken;
+  const owned = await (await staffInbox(inboxRequest('?filter=mine',undefined,ownerToken))).json();
+  assert.equal(owned.data[0].assigned_to_me,true);
+  const message = { operation_id:randomUUID(),message:'Resposta fictícia da equipe' };
+  assert.equal((await staffInbox(inboxRequest(path+'/reply',message,otherToken))).status,409);
+  assert.equal((await staffInbox(inboxRequest(path+'/release',{},otherToken))).status,409);
+  assert.equal((await staffInbox(inboxRequest(path+'/reply',message,ownerToken,'https://other.example.test'))).status,403);
+  const before = calls.length;
+  providerStatus = 200;
+  await Promise.all([staffInbox(inboxRequest(path+'/reply',message,ownerToken)),staffInbox(inboxRequest(path+'/reply',message,ownerToken))]);
+  const duplicate = await (await staffInbox(inboxRequest(path+'/reply',message,ownerToken))).json();
+  assert.deepEqual(duplicate,{ status:'accepted' });
+  assert.equal(calls.length,before+1);
+  assert.equal(calls.at(-1).options.headers['idempotency-key'],message.operation_id);
+  assert.equal((await staffInbox(inboxRequest(path+'/reply',{...message,message:'texto alterado'},ownerToken))).status,409);
+  await db.exec('RESET ROLE');
+  await db.query(`INSERT INTO nina_clinic.messages(conversation_id,whatsapp_message_id,type,from_type,content,status)
+    VALUES($1,'wamid.fixture','text','external',$2,'delivered')`,[conversationId,message.message]);
+  await db.exec('SET ROLE nina_app');
+  const thread = await (await staffInbox(inboxRequest(path,undefined,ownerToken))).json();
+  assert.equal(thread.data[0].from_type,'human');
+  assert.equal(thread.data[0].status,'delivered');
+  assert.equal((await staffInbox(inboxRequest(path+'/release',{},ownerToken))).status,200);
+  assert.equal((await staffInbox(inboxRequest(path+'/reply',{...message,operation_id:randomUUID()},ownerToken))).status,409);
+  await db.exec('RESET ROLE');
+  const [conversation] = await db.query('SELECT assigned_user_id,status,ai_paused FROM nina_clinic.conversations WHERE id=$1',[conversationId]);
+  assert.deepEqual(conversation,{assigned_user_id:null,status:'human',ai_paused:true});
+  await db.exec('SET ROLE nina_app');
+  assert.equal(calls.length,before+1);
+});
+
+test('inbox rejects expired conversations and persists ambiguous provider results without a resend', async () => {
+  const path='/'+conversationId;
+  assert.equal((await staffInbox(inboxRequest(path+'/assume',{}))).status,200);
+  await db.exec('RESET ROLE');
+  await db.query("UPDATE nina_channels.inbox_replies SET created_at=now()-interval '2 minutes'");
+  await db.query("UPDATE nina_clinic.messages SET sent_at=now()-interval '25 hours' WHERE from_type='user'");
+  await db.exec('SET ROLE nina_app');
+  const message={operation_id:randomUUID(),message:'Uma tentativa fictícia'};
+  const before=calls.length;
+  assert.equal((await staffInbox(inboxRequest(path+'/reply',message))).status,409);
+  assert.equal(calls.length,before);
+  await receive();
+  providerStatus=500;
+  assert.deepEqual(await (await staffInbox(inboxRequest(path+'/reply',message))).json(),{status:'uncertain'});
+  assert.deepEqual(await (await staffInbox(inboxRequest(path+'/reply',message))).json(),{status:'uncertain'});
+  assert.equal(calls.length,before+1);
 });

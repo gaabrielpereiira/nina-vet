@@ -13,6 +13,7 @@ import { createVetsoftReadOnly } from './vetsoft-read-only.mjs';
 import { createZernioWebhook } from './zernio-webhook.mjs';
 import { createChannelFiles } from './channel-files.mjs';
 import { createWhatsAppPilot } from './whatsapp-pilot.mjs';
+import { createStaffInbox } from './staff-inbox.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -54,6 +55,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
   const agentSettings = createAgentSettings(db, auth);
   const vetsoftReadOnly = createVetsoftReadOnly(db, auth, config, vetsoftFetch, log);
   const whatsappPilot = createWhatsAppPilot(db, auth, config, whatsappFetch, log);
+  const staffInbox = createStaffInbox(db, auth, config, whatsappFetch, log);
   const zernioWebhook = createZernioWebhook(db, config.zernio, log);
   const channelFiles = createChannelFiles(db,auth,config);
   return async function handle(request) {
@@ -115,6 +117,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
           const optionalVersions = channelsEnabled ? [] : ['0005_zernio_inbox.sql','0006_channel_processing.sql'];
           optionalVersions.push('0007_agent_settings.sql');
           if (!config.whatsappPilot?.enabled) optionalVersions.push('0008_whatsapp_pilot.sql');
+          if (!config.staffInbox?.enabled) optionalVersions.push('0009_staff_inbox.sql');
           if (await checkSchema(db, migrations, optionalVersions)) {
             if(config.media?.enabled){
               await mediaReady();
@@ -130,6 +133,15 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
                 has_function_privilege(current_user,'nina_channels.pilot_reply_target(text,text,uuid,uuid)','EXECUTE')
                 AND has_column_privilege(current_user,'nina_channels.pilot_replies','status','UPDATE') AS ready`);
               if (!pilot.ready) return respond({ status: 'not_ready' }, 503);
+            }
+            if (config.staffInbox?.enabled) {
+              const [inbox] = await db.query(`SELECT
+                has_function_privilege(current_user,'nina_channels.staff_inbox_list(text,text,text,text,integer)','EXECUTE')
+                AND has_function_privilege(current_user,'nina_channels.staff_inbox_thread(text,text,uuid,timestamptz,uuid,boolean)','EXECUTE') AS readable,
+                has_function_privilege(current_user,'nina_channels.staff_inbox_assign(text,text,uuid,boolean)','EXECUTE')
+                AND has_function_privilege(current_user,'nina_channels.staff_inbox_reserve(text,text,uuid,uuid,text)','EXECUTE')
+                AND has_function_privilege(current_user,'nina_channels.staff_inbox_finish(text,uuid,uuid,text,text)','EXECUTE') AS writable`);
+              if (!inbox.readable || (config.staffInbox.writable && !inbox.writable)) return respond({status:'not_ready'},503);
             }
             return respond({ status: 'ready' });
           }
@@ -180,6 +192,8 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
       if (path === '/v1/agent/settings' && request.method === 'GET') return respond(await agentSettings(request));
       if ((path === '/v1/integrations/vetsoft' && request.method === 'GET') ||
           (path === '/v1/integrations/vetsoft/check' && request.method === 'POST')) return respond(await vetsoftReadOnly(request, () => jsonBody(request)));
+      const inboxPath = path.match(/^\/v1\/inbox\/conversations(?:\/([^/]+)(?:\/(assume|release|reply))?)?$/);
+      if (inboxPath) return respond(await staffInbox(request, inboxPath[1], inboxPath[2], () => jsonBody(request)));
       const pilotContact = path.match(/^\/v1\/clinic\/contacts\/([^/]+)\/whatsapp-pilot$/);
       if (pilotContact) return respond(await whatsappPilot(request, pilotContact[1], () => jsonBody(request)));
       if (request.method === 'POST' && path.startsWith('/v1/clinic/')) {

@@ -1,43 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { ApiError } from './errors.mjs';
+import { sendZernioText } from './zernio-send.mjs';
 
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const noPilot = { available: false, status: null };
 const unavailable = () => new ApiError(409, 'PILOT_REPLY_UNAVAILABLE', 'A conversa de teste não está disponível para resposta.');
-
-async function sendText(fetcher, scope, target, message, log) {
-  let status;
-  try {
-    const response = await fetcher(`https://zernio.com/api/v1/inbox/conversations/${target}/messages`, {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(8000),
-      headers: { authorization: `Bearer ${scope.apiKey}`, 'content-type': 'application/json', 'idempotency-key': randomUUID() },
-      body: JSON.stringify({ accountId: scope.accountId, message }),
-    });
-    status = response.status;
-    const reader = response.body?.getReader();
-    if (!response.ok || !reader) {
-      await reader?.cancel();
-      return [400,401,403,404,422,429].includes(status) ? 'rejected' : 'uncertain';
-    }
-    const parts = [];
-    let length = 0;
-    try {
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        length += value.length;
-        if (length > 16384) { await reader.cancel(); return 'uncertain'; }
-        parts.push(Buffer.from(value));
-      }
-    } finally { reader.releaseLock(); }
-    const result = JSON.parse(Buffer.concat(parts).toString('utf8'));
-    if (result.success === true && result.data?.conversationId === target &&
-      typeof result.data?.messageId === 'string' && /^wamid\.[\w+/=-]{1,500}$/.test(result.data.messageId)) return 'accepted';
-  } catch {
-    log({ event: 'whatsapp_pilot_send_uncertain', http_status: status ?? null });
-  }
-  return 'uncertain';
-}
 
 export function createWhatsAppPilot(db, auth, config, fetcher = fetch, log = () => {}) {
   const scope = config.zernio;
@@ -86,7 +53,7 @@ export function createWhatsAppPilot(db, auth, config, fetcher = fetch, log = () 
     }
     if (!route.reserved) return route.status ? { available: false, status: route.status }
       : { available: true, status: null, inbound_id: route.inboundId };
-    const status = await sendText(fetcher, scope, route.target.provider_conversation_id, message, log);
+    const { status } = await sendZernioText(fetcher, scope, route.target.provider_conversation_id, message, randomUUID(), log);
     await withActor(user, tx => tx.query(`UPDATE nina_channels.pilot_replies SET status=$3
       WHERE conversation_id=$1 AND inbound_message_id=$2 AND status='sending'`, [...route.keys, status]));
     return { available: false, status };

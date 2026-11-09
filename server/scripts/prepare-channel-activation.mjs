@@ -6,7 +6,7 @@ import {readMigrations} from '../src/migrations.mjs';
 export async function prepareChannelActivation(accountId,profileId) {
  if(!/^[a-f0-9]{24}$/.test(accountId??'')||!/^[a-f0-9]{24}$/.test(profileId??''))throw Error('INVALID_CHANNEL_SCOPE');
  const source=await readMigrations();
- if(source.length>8||(source.length>=7&&source[6].version!=='0007_agent_settings.sql')||(source.length===8&&source[7].version!=='0008_whatsapp_pilot.sql'))throw Error('UNEXPECTED_MIGRATION_SOURCE');
+ if(source.length>9||source.slice(6).some((m,i)=>m.version!==['0007_agent_settings.sql','0008_whatsapp_pilot.sql','0009_staff_inbox.sql'][i]))throw Error('UNEXPECTED_MIGRATION_SOURCE');
  const migrations=source.slice(0,6);
  if(migrations.length!==6||migrations[5].version!=='0006_channel_processing.sql')throw Error('UNEXPECTED_MIGRATION_SOURCE');
  const roleSql=await readFile(new URL('../sql/channel-processing-role.sql',import.meta.url),'utf8');

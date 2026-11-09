@@ -6,6 +6,7 @@ import { LoginPage, RecoveryPage, ResetPage } from './AuthPages';
 import { AgendaPage, ContactsPage, ProceduresPage } from './Lists';
 import { ContactPage } from './ContactPage';
 import { WhatsAppPage } from './WhatsAppPage';
+import { InboxPage } from './InboxPage';
 import { AiTestsPage } from './AiTestsPage';
 import { AgentSettingsPage } from './AgentSettingsPage';
 import { Brand, ErrorNotice, Loading } from './ui';
@@ -16,10 +17,11 @@ function Workspace() {
   const [error, setError] = useState<string | null>(null);
   return <div className="workspace"><aside className="sidebar"><Link className="brand-link" to="/contatos" aria-label="Nina, página inicial"><Brand /></Link>
     <p className="nav-label">Seu dia a dia</p><nav aria-label="Menu principal">
+      <NavLink to="/conversas"><MessageCircle size={19} aria-hidden="true" /> Conversas</NavLink>
       <NavLink to="/contatos"><Users size={19} aria-hidden="true" /> Cadastros</NavLink>
       <NavLink to="/agenda"><CalendarDays size={19} aria-hidden="true" /> Agenda</NavLink>
       <NavLink to="/procedimentos"><ClipboardList size={19} aria-hidden="true" /> Procedimentos</NavLink>
-      {auth.session?.user.roles.includes('admin') && <NavLink to="/nina/whatsapp"><MessageCircle size={19} aria-hidden="true" /> WhatsApp</NavLink>}
+      {auth.session?.user.roles.includes('admin') && <NavLink to="/nina/whatsapp"><MessageCircle size={19} aria-hidden="true" /> Conexão WhatsApp</NavLink>}
       {auth.session?.user.roles.includes('admin') && <NavLink to="/nina/testes"><Sparkles size={19} aria-hidden="true" /> Testes da Nina</NavLink>}
       {auth.session?.user.roles.includes('admin') && <NavLink to="/nina/configuracoes"><Settings size={19} aria-hidden="true" /> Configurações da Nina</NavLink>}
     </nav><div className="sidebar-footer"><span className="status-dot" /> Clínica Vet+</div></aside>
@@ -48,6 +50,7 @@ export default function NativeApp({ initialRecoveryToken = '' }: { initialRecove
     <Route path="/auth/set-password" element={<ResetPage token={token} clearToken={() => setToken('')} />} />
     <Route element={<ProtectedWorkspace />}>
       <Route index element={<Navigate to="/contatos" replace />} />
+      <Route path="/conversas" element={<InboxPage />} />
       <Route path="/contatos" element={<ContactsPage />} />
       <Route path="/contatos/:id" element={<ContactPage />} />
       <Route path="/agenda" element={<AgendaPage />} />

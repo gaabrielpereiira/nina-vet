@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { readMigrations } from '../src/migrations.mjs';
 
-const migrations = await readMigrations();
+const migrations = (await readMigrations()).slice(0, 8);
 const pilot = migrations.at(-1);
 if (migrations.length !== 8 || pilot.version !== '0008_whatsapp_pilot.sql') throw new Error('Unexpected migration history');
 const prior = migrations.slice(0, -1).map(m => `('${m.version}','${m.checksum}')`).join(',\n');

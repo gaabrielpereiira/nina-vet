@@ -42,6 +42,20 @@ export type WhatsAppPilotState =
 
 export interface Message { id: string; conversation_id: string; type: string; from_type: string;
   content: string | null; status: string; sent_at: string; created_at: string; attachments?: MediaAttachment[] }
+export type InboxFilter = 'all' | 'mine' | 'unassigned';
+export interface InboxConversation {
+  id: string; contact_id: string; name: string; assignee: string | null; assigned_to_me: boolean;
+}
+export interface InboxPreview extends InboxConversation {
+  last_message_at: string; preview: string | null; message_type: string | null;
+}
+export interface InboxPage extends Page<InboxPreview> { enabled: boolean; writable: boolean }
+export interface InboxCursor { at: string; id: string }
+export interface InboxThread {
+  conversation: InboxConversation & { blocked: boolean; reply_until: string | null };
+  data: Message[]; next: InboxCursor | null;
+}
+export type InboxSendStatus = 'sending' | 'accepted' | 'rejected' | 'uncertain';
 export interface Procedure { revision: number; id: string; name: string; description: string | null; category: string | null;
   requirements: string | null; price_type: string; price: number | string | null;
   price_min: number | string | null; price_max: number | string | null;
@@ -53,6 +67,12 @@ const messages: Record<string, string> = {
   AI_PROVIDER_LIMIT: 'O limite do provedor de IA foi atingido. Tente novamente mais tarde.',
   AI_INVALID_RESPONSE: 'A Nina não conseguiu concluir a resposta. Tente novamente mais tarde.',
   SETTINGS_UNAVAILABLE: 'As configurações da Nina estão temporariamente indisponíveis. Tente novamente mais tarde.',
+  INBOX_INVALID: 'Confira a conversa e os dados informados.',
+  INBOX_DISABLED: 'O envio pela caixa de entrada ainda não está liberado.',
+  INBOX_OWNERSHIP: 'A conversa mudou de responsável. Atualize e confira antes de responder.',
+  INBOX_BLOCKED: 'Este contato está bloqueado.',
+  INBOX_WINDOW: 'A janela para responder pelo WhatsApp encerrou.',
+  INBOX_BUSY: 'Aguarde alguns segundos antes de enviar outra mensagem.',
   PILOT_REPLY_UNAVAILABLE: 'Esta conversa de teste não está disponível. Atualize as mensagens.',
   PILOT_REPLY_INVALID: 'Escreva uma mensagem de até 1.000 caracteres.',
   VETSOFT_UNAVAILABLE: 'A conexão com o VetSoft está temporariamente indisponível.',
@@ -213,6 +233,16 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     save: (resource: string, data: Record<string, unknown>, operation_id: string, version?: number) =>
       request<{ data: { id: string; revision: number } }>('/v1/clinic/' + resource, { body: { data, operation_id, ...(version === undefined ? {} : { version }) }, protected: true }),
     contactAppointments: (id: string, offset = 0, signal?: AbortSignal) => list<Appointment>('contacts/' + encodeURIComponent(id) + '/appointments', { limit: 20, offset }, signal),
+    inboxConversations: (filter: InboxFilter, q: string, offset: number, signal: AbortSignal) =>
+      request<InboxPage>('/v1/inbox/conversations?' + new URLSearchParams({ filter, q, offset: String(offset) }), { signal, protected:true }),
+    inboxThread: (id: string, cursor: InboxCursor | null, signal: AbortSignal) =>
+      request<InboxThread>('/v1/inbox/conversations/' + encodeURIComponent(id) +
+        (cursor ? '?' + new URLSearchParams({ before_at:cursor.at, before_id:cursor.id }) : ''), { signal, protected:true }),
+    assignInbox: (id: string, action: 'assume' | 'release', signal: AbortSignal) =>
+      request<{ status: 'ok' }>('/v1/inbox/conversations/' + encodeURIComponent(id) + '/' + action, { body:{}, signal, protected:true }),
+    replyInbox: (id: string, operation_id: string, message: string, signal: AbortSignal) =>
+      request<{ status: InboxSendStatus }>('/v1/inbox/conversations/' + encodeURIComponent(id) + '/reply',
+        { body:{ operation_id,message }, signal, protected:true }),
     whatsAppPilot: (id: string, signal?: AbortSignal) => request<WhatsAppPilotState>(
       '/v1/clinic/contacts/' + encodeURIComponent(id) + '/whatsapp-pilot', { signal, protected: true }),
     sendWhatsAppPilot: (id: string, inboundId: string, message: string, signal?: AbortSignal) => request<WhatsAppPilotState>(
