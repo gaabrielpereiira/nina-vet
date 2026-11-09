@@ -17,7 +17,7 @@ export async function prepareConversationRecovery(plan,{commit=false}={}){
   !Array.isArray(plan.historical_conversation_ids)||plan.historical_conversation_ids.length<2||plan.historical_conversation_ids.length>1000||
   plan.historical_conversation_ids.some(v=>!uuid.test(v))||new Set(plan.historical_conversation_ids).size!==plan.historical_conversation_ids.length||
   plan.historical_conversation_ids.includes(plan.new_conversation_id)||typeof plan.sent_at!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(plan.sent_at)||!Number.isFinite(Date.parse(plan.sent_at)))throw Error('INVALID_RECOVERY_PLAN');
- const migrations=await readMigrations();if(migrations.length!==7||migrations[6].version!=='0007_agent_settings.sql')throw Error('UNEXPECTED_RECOVERY_SOURCE');
+ const migrations=(await readMigrations()).slice(0,7);if(migrations.length!==7||migrations[6].version!=='0007_agent_settings.sql')throw Error('UNEXPECTED_RECOVERY_SOURCE');
  const expected=migrations.map(m=>"('"+m.version+"','"+m.checksum+"')").join(',');
  const data=JSON.stringify(plan),digest=createHash('sha256').update(data).digest('hex');let tag='nina_recovery_'+digest.slice(0,16);while(data.includes('$'+tag+'$'))tag+='x';
  return `\\set ON_ERROR_STOP on

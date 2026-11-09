@@ -11,7 +11,7 @@ export async function prepareAgentSettingsImport(candidate, expectedSnapshot, { 
   const settings = validateAgentSettings(candidate.settings), data = JSON.stringify(settings);
   const sourceHash = createHash('sha256').update(data).digest('hex');
   let tag = 'nina_settings_' + sourceHash.slice(0, 16); while (data.includes('$' + tag + '$')) tag += 'x';
-  const migrations = await readMigrations();
+  const migrations = (await readMigrations()).slice(0, 7);
   if (migrations.length !== 7 || migrations[6].version !== '0007_agent_settings.sql') throw Error('UNEXPECTED_SETTINGS_MIGRATIONS');
   const expected = migrations.slice(0, 6).map(m => "('" + m.version + "','" + m.checksum + "')").join(',');
   const grants = await readFile(new URL('../sql/agent-settings-role.sql', import.meta.url), 'utf8');

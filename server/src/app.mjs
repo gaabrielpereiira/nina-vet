@@ -12,6 +12,7 @@ import { createAgentSettings } from './agent-settings.mjs';
 import { createVetsoftReadOnly } from './vetsoft-read-only.mjs';
 import { createZernioWebhook } from './zernio-webhook.mjs';
 import { createChannelFiles } from './channel-files.mjs';
+import { createWhatsAppPilot } from './whatsapp-pilot.mjs';
 
 const MAX_BODY_BYTES = 16 * 1024;
 
@@ -43,7 +44,7 @@ async function jsonBody(request) {
   }
 }
 
-export function createApp({ db, config, migrations, log = () => {}, aiFetch = fetch, vetsoftFetch = fetch, mediaReady = async()=>true }) {
+export function createApp({ db, config, migrations, log = () => {}, aiFetch = fetch, vetsoftFetch = fetch, whatsappFetch = fetch, mediaReady = async()=>true }) {
   const auth = createAuth(db, config);
   const recovery = createPasswordRecovery(db, config);
   const clinic = createClinic(db, auth, {mediaEnabled:config.media?.enabled===true});
@@ -52,6 +53,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
   const aiRehearsals = createAiRehearsals(db, auth, config, aiFetch, log);
   const agentSettings = createAgentSettings(db, auth);
   const vetsoftReadOnly = createVetsoftReadOnly(db, auth, config, vetsoftFetch, log);
+  const whatsappPilot = createWhatsAppPilot(db, auth, config, whatsappFetch, log);
   const zernioWebhook = createZernioWebhook(db, config.zernio, log);
   const channelFiles = createChannelFiles(db,auth,config);
   return async function handle(request) {
@@ -112,6 +114,7 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
           const channelsEnabled=config.zernio?.enabled||config.channelProcessing?.enabled||config.media?.enabled;
           const optionalVersions = channelsEnabled ? [] : ['0005_zernio_inbox.sql','0006_channel_processing.sql'];
           optionalVersions.push('0007_agent_settings.sql');
+          if (!config.whatsappPilot?.enabled) optionalVersions.push('0008_whatsapp_pilot.sql');
           if (await checkSchema(db, migrations, optionalVersions)) {
             if(config.media?.enabled){
               await mediaReady();
@@ -121,6 +124,12 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
             if(config.channelProcessing?.enabled){
               const [status]=await db.query('SELECT nina_channels.runtime_status($1,$2) AS status',[config.zernio.accountId,config.zernio.profileId]);
               if(!status.status?.scope_matches)return respond({status:'not_ready'},503);
+            }
+            if (config.whatsappPilot?.enabled) {
+              const [pilot] = await db.query(`SELECT
+                has_function_privilege(current_user,'nina_channels.pilot_reply_target(text,text,uuid,uuid)','EXECUTE')
+                AND has_column_privilege(current_user,'nina_channels.pilot_replies','status','UPDATE') AS ready`);
+              if (!pilot.ready) return respond({ status: 'not_ready' }, 503);
             }
             return respond({ status: 'ready' });
           }
@@ -171,6 +180,8 @@ export function createApp({ db, config, migrations, log = () => {}, aiFetch = fe
       if (path === '/v1/agent/settings' && request.method === 'GET') return respond(await agentSettings(request));
       if ((path === '/v1/integrations/vetsoft' && request.method === 'GET') ||
           (path === '/v1/integrations/vetsoft/check' && request.method === 'POST')) return respond(await vetsoftReadOnly(request, () => jsonBody(request)));
+      const pilotContact = path.match(/^\/v1\/clinic\/contacts\/([^/]+)\/whatsapp-pilot$/);
+      if (pilotContact) return respond(await whatsappPilot(request, pilotContact[1], () => jsonBody(request)));
       if (request.method === 'POST' && path.startsWith('/v1/clinic/')) {
         return respond(await writeClinic(request, () => jsonBody(request)));
       }

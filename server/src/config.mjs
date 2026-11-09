@@ -96,6 +96,16 @@ function zernioConfig(env, processing = false) {
     accountId: env.ZERNIO_ACCOUNT_ID, profileId: env.ZERNIO_PROFILE_ID, encryptionKey });
 }
 
+function whatsappPilotConfig(env, processing) {
+  if (!flag(env, 'WHATSAPP_PILOT_ENABLED')) return Object.freeze({ enabled: false });
+  if (!processing || env.ZERNIO_WEBHOOK_ENABLED !== 'true') throw new Error('WhatsApp pilot requires active channel processing');
+  const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+  if (!uuid.test(env.WHATSAPP_PILOT_CONTACT_ID ?? '') || !uuid.test(env.WHATSAPP_PILOT_CONVERSATION_ID ?? '')) {
+    throw new Error('WhatsApp pilot requires one explicit contact and conversation');
+  }
+  return Object.freeze({ enabled: true, contactId: env.WHATSAPP_PILOT_CONTACT_ID, conversationId: env.WHATSAPP_PILOT_CONVERSATION_ID });
+}
+
 export function readConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'production';
   if (!['production', 'development', 'test'].includes(nodeEnv)) throw new Error('Invalid NODE_ENV');
@@ -118,6 +128,7 @@ export function readConfig(env = process.env) {
     email: emailConfig(env),
     aiTests: aiTestConfig(env),
     vetsoftReadOnly: vetsoftReadOnlyConfig(env),
+    whatsappPilot: whatsappPilotConfig(env, processing),
     zernio: zernioConfig(env,processing),
     channelProcessing:Object.freeze({enabled:processing,pollMilliseconds:5000,heartbeatMilliseconds:30000}),
     media:Object.freeze(mediaEnabled?{enabled:true,directory:env.MEDIA_STORAGE_DIR,requireMarker:production,

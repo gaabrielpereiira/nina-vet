@@ -36,6 +36,10 @@ export interface Appointment { revision: number; contact_id: string | null; anim
   procedure_name: string | null; duration: number }
 export interface MediaAttachment { id: string; position: number; type: string; is_sticker: boolean; voice: boolean; mime: string; bytes: number; filename: string | null }
 export interface ChannelStatus { receiving_enabled: boolean; processing_enabled: boolean; media_enabled: boolean; status: null | { scope_matches: boolean; pending: number; processing: number; needs_review: number; processed: number; last_processed_at: string | null } }
+export type WhatsAppPilotState =
+  | { available: true; status: null; inbound_id: string }
+  | { available: false; status: null | 'sending' | 'accepted' | 'rejected' | 'uncertain' };
+
 export interface Message { id: string; conversation_id: string; type: string; from_type: string;
   content: string | null; status: string; sent_at: string; created_at: string; attachments?: MediaAttachment[] }
 export interface Procedure { revision: number; id: string; name: string; description: string | null; category: string | null;
@@ -49,6 +53,8 @@ const messages: Record<string, string> = {
   AI_PROVIDER_LIMIT: 'O limite do provedor de IA foi atingido. Tente novamente mais tarde.',
   AI_INVALID_RESPONSE: 'A Nina não conseguiu concluir a resposta. Tente novamente mais tarde.',
   SETTINGS_UNAVAILABLE: 'As configurações da Nina estão temporariamente indisponíveis. Tente novamente mais tarde.',
+  PILOT_REPLY_UNAVAILABLE: 'Esta conversa de teste não está disponível. Atualize as mensagens.',
+  PILOT_REPLY_INVALID: 'Escreva uma mensagem de até 1.000 caracteres.',
   VETSOFT_UNAVAILABLE: 'A conexão com o VetSoft está temporariamente indisponível.',
   VETSOFT_INVALID_RESPONSE: 'O VetSoft não retornou uma resposta válida. Tente novamente mais tarde.',
   VETSOFT_AUTH_FAILED: 'O VetSoft não aceitou os dados de acesso. Confira a configuração da conexão.',
@@ -207,6 +213,11 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     save: (resource: string, data: Record<string, unknown>, operation_id: string, version?: number) =>
       request<{ data: { id: string; revision: number } }>('/v1/clinic/' + resource, { body: { data, operation_id, ...(version === undefined ? {} : { version }) }, protected: true }),
     contactAppointments: (id: string, offset = 0, signal?: AbortSignal) => list<Appointment>('contacts/' + encodeURIComponent(id) + '/appointments', { limit: 20, offset }, signal),
+    whatsAppPilot: (id: string, signal?: AbortSignal) => request<WhatsAppPilotState>(
+      '/v1/clinic/contacts/' + encodeURIComponent(id) + '/whatsapp-pilot', { signal, protected: true }),
+    sendWhatsAppPilot: (id: string, inboundId: string, message: string, signal?: AbortSignal) => request<WhatsAppPilotState>(
+      '/v1/clinic/contacts/' + encodeURIComponent(id) + '/whatsapp-pilot',
+      { body: { inbound_id: inboundId, message }, signal, protected: true }),
     contactMessages: (id: string, offset = 0, signal?: AbortSignal) => list<Message>('contacts/' + encodeURIComponent(id) + '/messages', { limit: 30, offset }, signal),
     appointments: (from: string, to: string, offset = 0, signal?: AbortSignal) => list<Appointment>('appointments', { from, to, limit: 50, offset }, signal),
     procedures: (q = '', offset = 0, signal?: AbortSignal) => list<Procedure>('procedures', { q, limit: 50, offset }, signal),
