@@ -41,18 +41,20 @@ export type WhatsAppPilotState =
   | { available: false; status: null | 'sending' | 'accepted' | 'rejected' | 'uncertain' };
 
 export interface Message { id: string; conversation_id: string; type: string; from_type: string;
-  content: string | null; status: string; sent_at: string; created_at: string; attachments?: MediaAttachment[] }
-export type InboxFilter = 'all' | 'mine' | 'unassigned';
+  content: string | null; status: string; sent_at: string; created_at: string; attachments?: MediaAttachment[];
+  operation_id?: string | null; author?: string | null }
+export type InboxFilter = 'all' | 'unread' | 'mine' | 'unassigned';
 export interface InboxConversation {
   id: string; contact_id: string; name: string; assignee: string | null; assigned_to_me: boolean;
 }
 export interface InboxPreview extends InboxConversation {
   last_message_at: string; preview: string | null; message_type: string | null;
+  last_direction: 'in' | 'out' | null; last_status: string | null; unread: number;
 }
 export interface InboxPage extends Page<InboxPreview> { enabled: boolean; writable: boolean }
 export interface InboxCursor { at: string; id: string }
 export interface InboxThread {
-  conversation: InboxConversation & { blocked: boolean; reply_until: string | null };
+  conversation: InboxConversation & { blocked: boolean; reply_until: string | null; phone: string | null };
   data: Message[]; next: InboxCursor | null;
 }
 export type InboxSendStatus = 'sending' | 'accepted' | 'rejected' | 'uncertain';
@@ -243,6 +245,9 @@ export function createNativeClient(base: string, fetcher: typeof fetch = fetch) 
     replyInbox: (id: string, operation_id: string, message: string, signal: AbortSignal) =>
       request<{ status: InboxSendStatus }>('/v1/inbox/conversations/' + encodeURIComponent(id) + '/reply',
         { body:{ operation_id,message }, signal, protected:true }),
+    inboxUnread: (signal: AbortSignal) => request<{ enabled: boolean; conversations: number }>('/v1/inbox/unread', { signal, protected:true }),
+    readInbox: (id: string, message_id: string, signal: AbortSignal) =>
+      request<{ status: 'ok' }>('/v1/inbox/conversations/' + encodeURIComponent(id) + '/read', { body:{ message_id }, signal, protected:true }),
     whatsAppPilot: (id: string, signal?: AbortSignal) => request<WhatsAppPilotState>(
       '/v1/clinic/contacts/' + encodeURIComponent(id) + '/whatsapp-pilot', { signal, protected: true }),
     sendWhatsAppPilot: (id: string, inboundId: string, message: string, signal?: AbortSignal) => request<WhatsAppPilotState>(

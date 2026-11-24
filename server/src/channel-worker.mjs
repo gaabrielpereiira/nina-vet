@@ -54,9 +54,10 @@ export function createChannelWorker({db,config,archive,log=()=>{}}) {
   return true;
  }
  async function tick(){
-  if(stopped)return;running=runOnce();
-  try{await running;}catch{log({event:'channel_worker_failed',code:'CHANNEL_WORKER_ERROR'});}
-  finally{running=null;if(!stopped){timer=setTimeout(tick,options.pollMilliseconds??5000);timer.unref();}}
+  if(stopped)return;running=runOnce();let worked=false;
+  try{worked=await running;}catch{log({event:'channel_worker_failed',code:'CHANNEL_WORKER_ERROR'});}
+  // Drain a busy queue at once; each reply alone produces sent, delivered and read events.
+  finally{running=null;if(!stopped){timer=setTimeout(tick,worked?0:options.pollMilliseconds??2000);timer.unref();}}
  }
  return {runOnce,start(){if(stopped&&options.enabled){stopped=false;timer=setTimeout(tick,0);timer.unref();}},
   async stop(){stopped=true;clearTimeout(timer);activeAbort?.abort();await running?.catch(()=>{});}};

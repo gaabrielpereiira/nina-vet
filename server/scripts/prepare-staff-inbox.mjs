@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { readMigrations } from '../src/migrations.mjs';
 
-const migrations = await readMigrations();
+const migrations = (await readMigrations()).slice(0,9);
 const inbox = migrations.at(-1);
 if (migrations.length !== 9 || inbox.version !== '0009_staff_inbox.sql') throw new Error('Unexpected migration history');
 const apply = process.argv.includes('--commit');

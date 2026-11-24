@@ -134,7 +134,7 @@ export function readConfig(env = process.env) {
     whatsappPilot: whatsappPilotConfig(env, processing),
     staffInbox: Object.freeze({ enabled:inboxEnabled, writable:inboxWritable }),
     zernio: zernioConfig(env,processing),
-    channelProcessing:Object.freeze({enabled:processing,pollMilliseconds:5000,heartbeatMilliseconds:30000}),
+    channelProcessing:Object.freeze({enabled:processing,pollMilliseconds:2000,heartbeatMilliseconds:30000}),
     media:Object.freeze(mediaEnabled?{enabled:true,directory:env.MEDIA_STORAGE_DIR,requireMarker:production,
       maxBytes:integer(env.MEDIA_MAX_FILE_BYTES,104857600,1024,134217728,'MEDIA_MAX_FILE_BYTES'),
       minFreeBytes:integer(env.MEDIA_MIN_FREE_BYTES,2147483648,0,1099511627776,'MEDIA_MIN_FREE_BYTES')}:{enabled:false}),

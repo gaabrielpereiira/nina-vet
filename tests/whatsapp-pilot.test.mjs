@@ -59,7 +59,7 @@ const reply = () => ({ inbound_id: inboundId, message: '  Recebemos sua mensagem
 
 before(async () => {
   pg = new PGlite(); db = adapter(pg); migrations = await readMigrations(); await migrate(db, migrations);
-  for (const file of ['runtime-role','clinic-runtime-role','clinic-write-role','zernio-inbox-role','channel-processing-role','whatsapp-pilot-role','staff-inbox-role']) {
+  for (const file of ['runtime-role','clinic-runtime-role','clinic-write-role','zernio-inbox-role','channel-processing-role','whatsapp-pilot-role','staff-inbox-role','chat-role']) {
     await db.exec((await readFile(new URL(`../server/sql/${file}.sql`, import.meta.url),'utf8')).replace('ON DATABASE nina TO','ON DATABASE postgres TO'));
   }
   adminToken = await user('admin'); staffToken = await user('user');
@@ -153,7 +153,7 @@ test('inbox groups only verified WhatsApp conversations for signed-in staff; rea
 
 test('two staff members cannot assume the same conversation; only the owner can send and release it', async () => {
   await db.exec('RESET ROLE');
-  await db.exec(await readFile(new URL('../server/sql/staff-inbox-write-role.sql',import.meta.url),'utf8'));
+  for (const file of ['staff-inbox-write-role','chat-write-role']) await db.exec(await readFile(new URL(`../server/sql/${file}.sql`,import.meta.url),'utf8'));
   await db.exec('SET ROLE nina_app');
   staffInbox = build(readConfig({ ...env, WHATSAPP_INBOX_ENABLED:'true', WHATSAPP_INBOX_WRITES_ENABLED:'true' }));
   const path = '/'+conversationId;

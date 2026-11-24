@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { CalendarDays, ClipboardList, LogOut, MessageCircle, Settings, Sparkles, Users } from 'lucide-react';
 import { NativeAuthProvider, useNativeAuth } from './NativeAuth';
 import { LoginPage, RecoveryPage, ResetPage } from './AuthPages';
@@ -7,17 +7,50 @@ import { AgendaPage, ContactsPage, ProceduresPage } from './Lists';
 import { ContactPage } from './ContactPage';
 import { WhatsAppPage } from './WhatsAppPage';
 import { InboxPage } from './InboxPage';
+import { ChatSessionProvider } from './ChatSession';
 import { AiTestsPage } from './AiTestsPage';
 import { AgentSettingsPage } from './AgentSettingsPage';
+import { client } from './client';
 import { Brand, ErrorNotice, Loading } from './ui';
 
+function useUnreadConversations() {
+  const [total, setTotal] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      clearTimeout(timer);
+      if (document.visibilityState === 'visible') {
+        try { const data = await client.inboxUnread(controller.signal); if (!controller.signal.aborted) setTotal(data.conversations); }
+        catch { /* O contador volta na próxima leitura. */ }
+      }
+      if (!controller.signal.aborted) timer = setTimeout(refresh, 15000);
+    };
+    void refresh();
+    window.addEventListener('nina:inbox-changed', refresh);
+    window.addEventListener('nina:unread-changed', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener('nina:inbox-changed', refresh);
+      window.removeEventListener('nina:unread-changed', refresh); document.removeEventListener('visibilitychange', refresh); };
+  }, []);
+  useEffect(() => {
+    const title = document.title.replace(/^\(\d+\+?\) /, '');
+    document.title = total ? `(${total > 99 ? '99+' : total}) ${title}` : title;
+    return () => { document.title = title; };
+  }, [total]);
+  return total;
+}
 function Workspace() {
   const auth = useNativeAuth();
+  const unread = useUnreadConversations();
+  const location = useLocation();
+  const chat = location.pathname === '/conversas';
+  const chatOpen = chat && new URLSearchParams(location.search).has('conversa');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  return <div className="workspace"><aside className="sidebar"><Link className="brand-link" to="/contatos" aria-label="Nina, página inicial"><Brand /></Link>
+  return <div className={'workspace' + (chat ? ' chat-route' : '') + (chatOpen ? ' chat-open' : '')}><aside className="sidebar"><Link className="brand-link" to="/contatos" aria-label="Nina, página inicial"><Brand /></Link>
     <p className="nav-label">Seu dia a dia</p><nav aria-label="Menu principal">
-      <NavLink to="/conversas"><MessageCircle size={19} aria-hidden="true" /> Conversas</NavLink>
+      <NavLink to="/conversas"><MessageCircle size={19} aria-hidden="true" /> Conversas{unread > 0 && <span className="nav-count" aria-label={`${unread} conversas não lidas`}>{unread > 99 ? '99+' : unread}</span>}</NavLink>
       <NavLink to="/contatos"><Users size={19} aria-hidden="true" /> Cadastros</NavLink>
       <NavLink to="/agenda"><CalendarDays size={19} aria-hidden="true" /> Agenda</NavLink>
       <NavLink to="/procedimentos"><ClipboardList size={19} aria-hidden="true" /> Procedimentos</NavLink>
@@ -31,7 +64,7 @@ function Workspace() {
         try { await auth.signOut(); } catch (error) { setError(error instanceof Error ? error.message : 'Não foi possível sair.'); }
         finally { setBusy(false); }
       }}><LogOut size={16} aria-hidden="true" />{busy ? 'Saindo…' : 'Sair'}</button></div></header>
-      <main id="main-content" className="content">{error && <ErrorNotice message={error} />}<Outlet /></main>
+      <main id="main-content" className="content">{error && <ErrorNotice message={error} />}<ChatSessionProvider><Outlet /></ChatSessionProvider></main>
     </div></div>;
 }
 function ProtectedWorkspace() {
